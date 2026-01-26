@@ -3,7 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:grid_storage_nfc/features/inventory/presentation/bloc/inventory_bloc.dart';
 import 'package:grid_storage_nfc/features/inventory/presentation/widgets/box_3d_viewer.dart';
 import 'package:hexcolor/hexcolor.dart';
-
+import 'package:intl/intl.dart';
 import 'package:grid_storage_nfc/features/inventory/presentation/pages/setup_tag_screen.dart';
 
 class InventoryPage extends StatelessWidget {
@@ -108,7 +108,10 @@ class InventoryPage extends StatelessWidget {
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.all(16.0),
-                    child: Text('Last Used: ${box.lastUsed}'),
+                    child: Text(
+                      'Last Used: ${DateFormat('yyyy-MM-dd – HH:mm').format(box.lastUsed)}',
+                      style: const TextStyle(fontSize: 16, color: Colors.grey),
+                    ),
                   ),
                 ),
                 SliverToBoxAdapter(
