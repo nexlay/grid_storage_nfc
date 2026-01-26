@@ -22,28 +22,38 @@ const StorageBoxSchema = CollectionSchema(
       name: r'hexColor',
       type: IsarType.string,
     ),
-    r'itemName': PropertySchema(
+    r'isSynced': PropertySchema(
       id: 1,
+      name: r'isSynced',
+      type: IsarType.bool,
+    ),
+    r'itemName': PropertySchema(
+      id: 2,
       name: r'itemName',
       type: IsarType.string,
     ),
     r'lastUsed': PropertySchema(
-      id: 2,
+      id: 3,
       name: r'lastUsed',
       type: IsarType.dateTime,
     ),
     r'modelPath': PropertySchema(
-      id: 3,
+      id: 4,
       name: r'modelPath',
       type: IsarType.string,
     ),
     r'quantity': PropertySchema(
-      id: 4,
+      id: 5,
       name: r'quantity',
       type: IsarType.long,
     ),
+    r'remoteId': PropertySchema(
+      id: 6,
+      name: r'remoteId',
+      type: IsarType.string,
+    ),
     r'threshold': PropertySchema(
-      id: 5,
+      id: 7,
       name: r'threshold',
       type: IsarType.long,
     )
@@ -71,6 +81,12 @@ int _storageBoxEstimateSize(
   bytesCount += 3 + object.hexColor.length * 3;
   bytesCount += 3 + object.itemName.length * 3;
   bytesCount += 3 + object.modelPath.length * 3;
+  {
+    final value = object.remoteId;
+    if (value != null) {
+      bytesCount += 3 + value.length * 3;
+    }
+  }
   return bytesCount;
 }
 
@@ -81,11 +97,13 @@ void _storageBoxSerialize(
   Map<Type, List<int>> allOffsets,
 ) {
   writer.writeString(offsets[0], object.hexColor);
-  writer.writeString(offsets[1], object.itemName);
-  writer.writeDateTime(offsets[2], object.lastUsed);
-  writer.writeString(offsets[3], object.modelPath);
-  writer.writeLong(offsets[4], object.quantity);
-  writer.writeLong(offsets[5], object.threshold);
+  writer.writeBool(offsets[1], object.isSynced);
+  writer.writeString(offsets[2], object.itemName);
+  writer.writeDateTime(offsets[3], object.lastUsed);
+  writer.writeString(offsets[4], object.modelPath);
+  writer.writeLong(offsets[5], object.quantity);
+  writer.writeString(offsets[6], object.remoteId);
+  writer.writeLong(offsets[7], object.threshold);
 }
 
 StorageBox _storageBoxDeserialize(
@@ -97,11 +115,13 @@ StorageBox _storageBoxDeserialize(
   final object = StorageBox();
   object.hexColor = reader.readString(offsets[0]);
   object.id = id;
-  object.itemName = reader.readString(offsets[1]);
-  object.lastUsed = reader.readDateTime(offsets[2]);
-  object.modelPath = reader.readString(offsets[3]);
-  object.quantity = reader.readLong(offsets[4]);
-  object.threshold = reader.readLong(offsets[5]);
+  object.isSynced = reader.readBool(offsets[1]);
+  object.itemName = reader.readString(offsets[2]);
+  object.lastUsed = reader.readDateTime(offsets[3]);
+  object.modelPath = reader.readString(offsets[4]);
+  object.quantity = reader.readLong(offsets[5]);
+  object.remoteId = reader.readStringOrNull(offsets[6]);
+  object.threshold = reader.readLong(offsets[7]);
   return object;
 }
 
@@ -115,14 +135,18 @@ P _storageBoxDeserializeProp<P>(
     case 0:
       return (reader.readString(offset)) as P;
     case 1:
-      return (reader.readString(offset)) as P;
+      return (reader.readBool(offset)) as P;
     case 2:
-      return (reader.readDateTime(offset)) as P;
-    case 3:
       return (reader.readString(offset)) as P;
+    case 3:
+      return (reader.readDateTime(offset)) as P;
     case 4:
-      return (reader.readLong(offset)) as P;
+      return (reader.readString(offset)) as P;
     case 5:
+      return (reader.readLong(offset)) as P;
+    case 6:
+      return (reader.readStringOrNull(offset)) as P;
+    case 7:
       return (reader.readLong(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -403,6 +427,16 @@ extension StorageBoxQueryFilter
         includeLower: includeLower,
         upper: upper,
         includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<StorageBox, StorageBox, QAfterFilterCondition> isSyncedEqualTo(
+      bool value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'isSynced',
+        value: value,
       ));
     });
   }
@@ -783,6 +817,157 @@ extension StorageBoxQueryFilter
     });
   }
 
+  QueryBuilder<StorageBox, StorageBox, QAfterFilterCondition> remoteIdIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'remoteId',
+      ));
+    });
+  }
+
+  QueryBuilder<StorageBox, StorageBox, QAfterFilterCondition>
+      remoteIdIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'remoteId',
+      ));
+    });
+  }
+
+  QueryBuilder<StorageBox, StorageBox, QAfterFilterCondition> remoteIdEqualTo(
+    String? value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'remoteId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StorageBox, StorageBox, QAfterFilterCondition>
+      remoteIdGreaterThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'remoteId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StorageBox, StorageBox, QAfterFilterCondition> remoteIdLessThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'remoteId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StorageBox, StorageBox, QAfterFilterCondition> remoteIdBetween(
+    String? lower,
+    String? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'remoteId',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StorageBox, StorageBox, QAfterFilterCondition>
+      remoteIdStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'remoteId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StorageBox, StorageBox, QAfterFilterCondition> remoteIdEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'remoteId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StorageBox, StorageBox, QAfterFilterCondition> remoteIdContains(
+      String value,
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'remoteId',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StorageBox, StorageBox, QAfterFilterCondition> remoteIdMatches(
+      String pattern,
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'remoteId',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StorageBox, StorageBox, QAfterFilterCondition>
+      remoteIdIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'remoteId',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<StorageBox, StorageBox, QAfterFilterCondition>
+      remoteIdIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'remoteId',
+        value: '',
+      ));
+    });
+  }
+
   QueryBuilder<StorageBox, StorageBox, QAfterFilterCondition> thresholdEqualTo(
       int value) {
     return QueryBuilder.apply(this, (query) {
@@ -858,6 +1043,18 @@ extension StorageBoxQuerySortBy
     });
   }
 
+  QueryBuilder<StorageBox, StorageBox, QAfterSortBy> sortByIsSynced() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isSynced', Sort.asc);
+    });
+  }
+
+  QueryBuilder<StorageBox, StorageBox, QAfterSortBy> sortByIsSyncedDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isSynced', Sort.desc);
+    });
+  }
+
   QueryBuilder<StorageBox, StorageBox, QAfterSortBy> sortByItemName() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'itemName', Sort.asc);
@@ -906,6 +1103,18 @@ extension StorageBoxQuerySortBy
     });
   }
 
+  QueryBuilder<StorageBox, StorageBox, QAfterSortBy> sortByRemoteId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'remoteId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<StorageBox, StorageBox, QAfterSortBy> sortByRemoteIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'remoteId', Sort.desc);
+    });
+  }
+
   QueryBuilder<StorageBox, StorageBox, QAfterSortBy> sortByThreshold() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'threshold', Sort.asc);
@@ -942,6 +1151,18 @@ extension StorageBoxQuerySortThenBy
   QueryBuilder<StorageBox, StorageBox, QAfterSortBy> thenByIdDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'id', Sort.desc);
+    });
+  }
+
+  QueryBuilder<StorageBox, StorageBox, QAfterSortBy> thenByIsSynced() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isSynced', Sort.asc);
+    });
+  }
+
+  QueryBuilder<StorageBox, StorageBox, QAfterSortBy> thenByIsSyncedDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isSynced', Sort.desc);
     });
   }
 
@@ -993,6 +1214,18 @@ extension StorageBoxQuerySortThenBy
     });
   }
 
+  QueryBuilder<StorageBox, StorageBox, QAfterSortBy> thenByRemoteId() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'remoteId', Sort.asc);
+    });
+  }
+
+  QueryBuilder<StorageBox, StorageBox, QAfterSortBy> thenByRemoteIdDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'remoteId', Sort.desc);
+    });
+  }
+
   QueryBuilder<StorageBox, StorageBox, QAfterSortBy> thenByThreshold() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'threshold', Sort.asc);
@@ -1012,6 +1245,12 @@ extension StorageBoxQueryWhereDistinct
       {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'hexColor', caseSensitive: caseSensitive);
+    });
+  }
+
+  QueryBuilder<StorageBox, StorageBox, QDistinct> distinctByIsSynced() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'isSynced');
     });
   }
 
@@ -1041,6 +1280,13 @@ extension StorageBoxQueryWhereDistinct
     });
   }
 
+  QueryBuilder<StorageBox, StorageBox, QDistinct> distinctByRemoteId(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'remoteId', caseSensitive: caseSensitive);
+    });
+  }
+
   QueryBuilder<StorageBox, StorageBox, QDistinct> distinctByThreshold() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'threshold');
@@ -1059,6 +1305,12 @@ extension StorageBoxQueryProperty
   QueryBuilder<StorageBox, String, QQueryOperations> hexColorProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'hexColor');
+    });
+  }
+
+  QueryBuilder<StorageBox, bool, QQueryOperations> isSyncedProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'isSynced');
     });
   }
 
@@ -1083,6 +1335,12 @@ extension StorageBoxQueryProperty
   QueryBuilder<StorageBox, int, QQueryOperations> quantityProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'quantity');
+    });
+  }
+
+  QueryBuilder<StorageBox, String?, QQueryOperations> remoteIdProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'remoteId');
     });
   }
 

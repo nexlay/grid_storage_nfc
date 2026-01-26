@@ -38,3 +38,13 @@ class InventoryError extends InventoryState {
   @override
   List<Object> get props => [message];
 }
+
+// New state
+class InventoryListLoaded extends InventoryState {
+  final List<StorageBox> boxes;
+
+  const InventoryListLoaded({required this.boxes});
+
+  @override
+  List<Object?> get props => [boxes];
+}

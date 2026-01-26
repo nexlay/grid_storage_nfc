@@ -25,7 +25,17 @@ class LoadInventory extends InventoryEvent {
   const LoadInventory();
 }
 
+// New event
+class LoadAllItems extends InventoryEvent {
+  const LoadAllItems();
+}
+
+class ResetInventory extends InventoryEvent {
+  const ResetInventory();
+}
+
 class WriteTagRequested extends InventoryEvent {
+  final String? id; // Optional ID for editing existing items
   final String name;
   final String description;
   final int quantity;
@@ -33,6 +43,7 @@ class WriteTagRequested extends InventoryEvent {
   final String color;
 
   const WriteTagRequested({
+    this.id,
     required this.name,
     required this.description,
     required this.quantity,
@@ -41,5 +52,22 @@ class WriteTagRequested extends InventoryEvent {
   });
 
   @override
-  List<Object> get props => [name, description, quantity, threshold, color];
+  List<Object> get props => [
+        id ?? '',
+        name,
+        description,
+        quantity,
+        threshold,
+        color,
+      ];
+}
+
+// Renamed event
+class DeleteBoxRequested extends InventoryEvent {
+  final String boxId;
+
+  const DeleteBoxRequested({required this.boxId});
+
+  @override
+  List<Object> get props => [boxId];
 }

@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:grid_storage_nfc/features/inventory/domain/entities/storage_box.dart'; // Import StorageBox
 import 'package:grid_storage_nfc/features/inventory/presentation/bloc/inventory_bloc.dart';
+import 'package:hexcolor/hexcolor.dart';
 
 class SetupTagScreen extends StatefulWidget {
-  const SetupTagScreen({Key? key}) : super(key: key);
+  final StorageBox? boxToEdit; // New optional parameter
+
+  const SetupTagScreen({Key? key, this.boxToEdit}) : super(key: key);
 
   @override
   State<SetupTagScreen> createState() => _SetupTagScreenState();
@@ -11,9 +15,9 @@ class SetupTagScreen extends StatefulWidget {
 
 class _SetupTagScreenState extends State<SetupTagScreen> {
   final _formKey = GlobalKey<FormState>();
-  String _name = '';
-  int _initialQuantity = 0;
-  int _threshold = 0;
+  late TextEditingController _nameController;
+  late TextEditingController _quantityController;
+  late TextEditingController _thresholdController;
   String _selectedColor = '#FFFFFF';
   bool _isLoading = false;
 
@@ -26,6 +30,30 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
     '#FF00FF',
     '#00FFFF',
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController();
+    _quantityController = TextEditingController();
+    _thresholdController = TextEditingController();
+
+    if (widget.boxToEdit != null) {
+      // Pre-fill form fields if in edit mode
+      _nameController.text = widget.boxToEdit!.itemName;
+      _quantityController.text = widget.boxToEdit!.quantity.toString();
+      _thresholdController.text = widget.boxToEdit!.threshold.toString();
+      _selectedColor = widget.boxToEdit!.hexColor;
+    }
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _quantityController.dispose();
+    _thresholdController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -47,7 +75,7 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
       },
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Setup New Tag'),
+          title: Text(widget.boxToEdit == null ? 'Setup New Tag' : 'Edit Item'),
         ),
         body: Stack(
           children: [
@@ -60,6 +88,7 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
                   child: ListView(
                     children: [
                       TextFormField(
+                        controller: _nameController,
                         decoration: const InputDecoration(labelText: 'Name'),
                         validator: (value) {
                           if (value == null || value.isEmpty) {
@@ -67,34 +96,33 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
                           }
                           return null;
                         },
-                        onSaved: (value) => _name = value!,
+                        onSaved: (value) => _nameController.text = value!,
                       ),
                       TextFormField(
+                        controller: _quantityController,
                         decoration: const InputDecoration(
                             labelText: 'Initial Quantity'),
                         keyboardType: TextInputType.number,
                         validator: (value) {
-                          if (value == null ||
-                              int.tryParse(value) == null) {
+                          if (value == null || int.tryParse(value) == null) {
                             return 'Please enter a valid number';
                           }
                           return null;
                         },
-                        onSaved: (value) =>
-                            _initialQuantity = int.parse(value!),
+                        onSaved: (value) => _quantityController.text = value!,
                       ),
                       TextFormField(
+                        controller: _thresholdController,
                         decoration:
                             const InputDecoration(labelText: 'Threshold'),
                         keyboardType: TextInputType.number,
                         validator: (value) {
-                          if (value == null ||
-                              int.tryParse(value) == null) {
+                          if (value == null || int.tryParse(value) == null) {
                             return 'Please enter a valid number';
                           }
                           return null;
                         },
-                        onSaved: (value) => _threshold = int.parse(value!),
+                        onSaved: (value) => _thresholdController.text = value!,
                       ),
                       const SizedBox(height: 20),
                       const Text('Color', style: TextStyle(fontSize: 16)),
@@ -116,10 +144,7 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
                                 width: 40,
                                 height: 40,
                                 decoration: BoxDecoration(
-                                  color: Color(int.parse(
-                                          color.substring(1, 7),
-                                          radix: 16) +
-                                      0xFF000000),
+                                  color: HexColor(color),
                                   shape: BoxShape.circle,
                                   border: _selectedColor == color
                                       ? Border.all(
@@ -140,17 +165,21 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
                                   _formKey.currentState!.save();
                                   context.read<InventoryBloc>().add(
                                         WriteTagRequested(
-                                          name: _name,
-                                          description:
-                                              '', // No description field in form
-                                          quantity: _initialQuantity,
-                                          threshold: _threshold,
+                                          id: widget.boxToEdit?.id.toString(), // Pass ID if editing
+                                          name: _nameController.text,
+                                          description: '',
+                                          quantity:
+                                              int.parse(_quantityController.text),
+                                          threshold:
+                                              int.parse(_thresholdController.text),
                                           color: _selectedColor,
                                         ),
                                       );
                                 }
                               },
-                        child: const Text('Write to Tag'),
+                        child: Text(widget.boxToEdit == null
+                            ? 'Write to Tag'
+                            : 'Update Database'),
                       ),
                     ],
                   ),

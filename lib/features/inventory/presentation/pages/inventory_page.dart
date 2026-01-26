@@ -5,6 +5,7 @@ import 'package:grid_storage_nfc/features/inventory/presentation/widgets/box_3d_
 import 'package:hexcolor/hexcolor.dart';
 import 'package:intl/intl.dart';
 import 'package:grid_storage_nfc/features/inventory/presentation/pages/setup_tag_screen.dart';
+import 'package:grid_storage_nfc/features/inventory/presentation/pages/all_items_page.dart'; // Import AllItemsPage
 
 class InventoryPage extends StatelessWidget {
   const InventoryPage({Key? key}) : super(key: key);
@@ -21,6 +22,18 @@ class InventoryPage extends StatelessWidget {
               Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => const SetupTagScreen()),
               );
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.list),
+            onPressed: () {
+              Navigator.of(context)
+                  .push(
+                MaterialPageRoute(builder: (_) => const AllItemsPage()),
+              )
+                  .then((_) {
+                context.read<InventoryBloc>().add(const ResetInventory());
+              });
             },
           ),
         ],
@@ -64,9 +77,46 @@ class InventoryPage extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          box.itemName,
-                          style: Theme.of(context).textTheme.headlineMedium,
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              box.itemName,
+                              style: Theme.of(context).textTheme.headlineMedium,
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.delete, color: Colors.red),
+                              onPressed: () async {
+                                final confirmed = await showDialog<bool>(
+                                  context: context,
+                                  builder: (ctx) => AlertDialog(
+                                    title: const Text('Confirm Deletion'),
+                                    content: Text(
+                                        'Are you sure you want to delete ${box.itemName}?'),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () =>
+                                            Navigator.of(ctx).pop(false),
+                                        child: const Text('Cancel'),
+                                      ),
+                                      TextButton(
+                                        onPressed: () =>
+                                            Navigator.of(ctx).pop(true),
+                                        child: const Text('Delete'),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                                if (confirmed == true) {
+                                  // Dispatch DeleteBox event
+                                  context.read<InventoryBloc>().add(
+                                      DeleteBoxRequested(
+                                          boxId: box.id
+                                              .toString())); // Assuming id is string or can be converted
+                                }
+                              },
+                            ),
+                          ],
                         ),
                         Text(
                           'Quantity: ${box.quantity}',

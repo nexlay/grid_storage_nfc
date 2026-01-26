@@ -17,6 +17,9 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
     on<ScanTagRequested>(_onScanTagRequested);
     on<UpdateQuantity>(_onUpdateQuantity);
     on<WriteTagRequested>(_onWriteTagRequested);
+    on<DeleteBoxRequested>(_onDeleteBoxRequested);
+    on<LoadAllItems>(_onLoadAllItems);
+    on<ResetInventory>((event, emit) => emit(const InventoryInitial()));
   }
 
   Future<void> _onWriteTagRequested(
@@ -25,26 +28,48 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
   ) async {
     emit(const InventoryLoading());
     try {
-      // 1. Create the new box object
-      final newBox = StorageBox()
-        ..itemName = event.name
-        ..quantity = event.quantity
-        ..threshold = event.threshold
-        ..hexColor = event.color
-        ..modelPath = 'assets/models/box.glb'
-        ..lastUsed = DateTime.now();
+      StorageBox boxToSave;
 
-      // 2. Save to DB and get the generated ID
-      final id = await _inventoryRepository.saveBox(newBox);
-      newBox.id = id;
+      if (event.id != null) {
+        // Editing an existing item
+        final existingBox = await _inventoryRepository.getBox(event.id!);
+        if (existingBox == null) {
+          emit(const InventoryError('Box not found for editing.'));
+          return;
+        }
+        boxToSave = existingBox.copyWith(
+          itemName: event.name,
+          quantity: event.quantity,
+          threshold: event.threshold,
+          hexColor: event.color,
+          lastUsed: DateTime.now(),
+          isSynced: false, // Set to false on update
+        );
+      } else {
+        // Creating a new item
+        boxToSave = StorageBox()
+          ..itemName = event.name
+          ..quantity = event.quantity
+          ..threshold = event.threshold
+          ..hexColor = event.color
+          ..modelPath = 'assets/models/box.glb'
+          ..lastUsed = DateTime.now()
+          ..isSynced = false; // New item is not synced
+      }
 
-      // 3. Write just the ID to the NFC tag (simple string)
-      await _nfcService.writeTag(id.toString());
+      final id = await _inventoryRepository.saveBox(boxToSave);
+      // It's important to update the id of boxToSave as Isar might assign a new one
+      boxToSave = boxToSave.copyWith(id: id);
 
-      // 4. Update UI
-      emit(InventoryLoaded(box: newBox, message: 'Tag written successfully!'));
+      // Only write to NFC if it's a NEW item (id was null)
+      if (event.id == null) {
+        await _nfcService.writeTag(id.toString());
+      }
+
+      emit(
+          InventoryLoaded(box: boxToSave, message: 'Item saved successfully!'));
     } catch (e) {
-      emit(InventoryError('Failed to write tag: ${e.toString()}'));
+      emit(InventoryError('Failed to save item: ${e.toString()}'));
     }
   }
 
@@ -66,7 +91,7 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
       if (tagPayload != null) {
         String cleanId = tagPayload!;
 
-        // FIX: Handle Legacy JSON payloads (extract ID if present)
+        // Handle Legacy JSON payloads (extract ID if present)
         if (cleanId.trim().startsWith('{')) {
           try {
             final Map<String, dynamic> data = jsonDecode(cleanId);
@@ -78,7 +103,6 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
           }
         }
 
-        // Now 'cleanId' should be just the number string (e.g., "15")
         var box = await _inventoryRepository.getBox(cleanId);
 
         if (box == null) {
@@ -103,18 +127,41 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
     final currentState = state;
     if (currentState is InventoryLoaded) {
       final currentBox = currentState.box;
-      final updatedBox = StorageBox()
-        ..id = currentBox.id
-        ..itemName = currentBox.itemName
-        ..quantity = event.newQuantity
-        ..threshold = currentBox.threshold
-        ..hexColor = currentBox.hexColor
-        ..modelPath = currentBox.modelPath
-        ..lastUsed = DateTime.now();
+      final updatedBox = currentBox.copyWith(
+        quantity: event.newQuantity,
+        lastUsed: DateTime.now(),
+        isSynced: false, // Quantity update also marks as not synced
+      );
 
       await _inventoryRepository.saveBox(updatedBox);
       final isLowStock = updatedBox.quantity < updatedBox.threshold;
       emit(InventoryLoaded(box: updatedBox, isLowStock: isLowStock));
+    }
+  }
+
+  Future<void> _onLoadAllItems(
+    LoadAllItems event,
+    Emitter<InventoryState> emit,
+  ) async {
+    emit(const InventoryLoading());
+    try {
+      final boxes = await _inventoryRepository.getAllBoxes();
+      emit(InventoryListLoaded(boxes: boxes));
+    } catch (e) {
+      emit(InventoryError('Failed to load inventory: ${e.toString()}'));
+    }
+  }
+
+  Future<void> _onDeleteBoxRequested(
+    DeleteBoxRequested event,
+    Emitter<InventoryState> emit,
+  ) async {
+    emit(const InventoryLoading());
+    try {
+      await _inventoryRepository.deleteBox(event.boxId);
+      add(const LoadAllItems()); // Refresh the list after deletion
+    } catch (e) {
+      emit(InventoryError('Failed to delete box: ${e.toString()}'));
     }
   }
 }
