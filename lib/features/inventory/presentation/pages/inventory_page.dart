@@ -184,16 +184,7 @@ class InventoryPage extends StatelessWidget {
                       subtitle: Text(DateFormat('yyyy-MM-dd – HH:mm')
                           .format(box.lastUsed)),
                     ),
-                    ListTile(
-                      leading: const Icon(Icons.color_lens),
-                      title: const Text('Tag Color'),
-                      trailing: CircleAvatar(
-                        backgroundColor: HexColor(box.hexColor),
-                        radius: 16,
-                      ),
-                    ),
 
-                    // Dodatkowy odstęp na dole, żeby FAB nie zasłaniał treści
                     const SizedBox(height: 80),
                   ]),
                 ),

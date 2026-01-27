@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_3d_controller/flutter_3d_controller.dart';
+import 'package:hexcolor/hexcolor.dart';
 
 class Box3DViewer extends StatefulWidget {
   final String modelPath;
@@ -35,9 +36,13 @@ class _Box3DViewerState extends State<Box3DViewer> {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 300,
-      width: double.infinity,
+    return Container(
+      height: 200,
+      width: 200,
+      decoration: BoxDecoration(
+        color: HexColor(widget.hexColor),
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: _isReady
           ? Flutter3DViewer(
               controller: controller,

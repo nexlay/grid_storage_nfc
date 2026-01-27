@@ -1,36 +1,64 @@
-Project Initialized. Architecture: Feature-Based Clean Arch
-Overall Architecture: The project follows a Clean Architecture pattern, with layers for Presentation (BLoC), Domain (Entities, Repositories), and Data (Repositories, Data Sources). However, there has been a significant refactoring in the data layer, consolidating responsibilities.
+# Project Status
 
-Key Components and Their Status:
+This document summarizes the analysis of the `grid_storage_nfc` Flutter project.
 
-*   lib/main.dart: Entry point, initializes GetIt (DI), and sets up InventoryBloc for the InventoryPage.
-*   lib/injection_container.dart: Handles dependency injection using GetIt. It now directly injects Isar into InventoryRepositoryImpl and registers NfcService.
-*   lib/core/services/nfc_service.dart: Manages NFC operations using `nfc_manager` and `nfc_manager_ndef`. Includes methods for `startSession`, `stopSession`, and `writeTag`. The `writeTag` method manually constructs `NdefRecord` and uses `Completer` for asynchronous tag writing.
-*   lib/features/inventory/domain/entities/storage_box.dart: Added `bool isSynced` and `String? remoteId` fields, and updated the constructor for better initialization.
-*   lib/features/inventory/presentation/bloc/inventory_event.dart: Defines events for the `InventoryBloc`. Added `LoadAllItems` and `DeleteBoxRequested` events. Updated `WriteTagRequested` with an optional `id` for distinguishing between new items and edits.
-*   lib/features/inventory/presentation/bloc/inventory_state.dart: Defines states for the `InventoryBloc`. Added `InventoryListLoaded` state to hold a list of `StorageBox`es for displaying all items.
-*   lib/features/inventory/presentation/bloc/inventory_bloc.dart:
-    *   Implemented handlers for `LoadAllItems` to fetch all boxes from the repository and emit `InventoryListLoaded`.
-    *   Implemented `DeleteBoxRequested` to delete a box via the repository and then trigger `LoadAllItems` to refresh the list.
-    *   Updated `_onWriteTagRequested` to handle both new item creation and existing item editing (using `event.id`). Conditionally writes to NFC only for new items. Also sets `isSynced = false` for new/updated items.
-    *   Updated `_onUpdateQuantity` to set `isSynced = false` when quantity is changed.
-*   lib/features/inventory/domain/repositories/inventory_repository.dart: Defines the contract for inventory operations in the domain layer (`saveBox`, `getBox`, `getAllBoxes`, `deleteBox`), operating on `StorageBox` entities.
-*   lib/features/inventory/data/repositories/inventory_repository_impl.dart: Implements `InventoryRepository`. It directly interacts with `Isar` for persistence, absorbing the responsibilities of a local data source. It also has an `init` method to open the Isar database.
-*   lib/features/inventory/data/datasources/inventory_local_datasource.dart: This file has been removed/refactored out of existence. Its responsibilities have been absorbed by `InventoryRepositoryImpl`.
-*   lib/features/inventory/domain/usecases/get_all_boxes.dart and lib/features/inventory/domain/usecases/get_box_by_id.dart: These use case files were not found, indicating they have been removed or merged elsewhere.
-*   lib/features/inventory/presentation/pages/all_items_page.dart: New page created to display all inventory items. Features include:
-    *   Dispatches `LoadAllItems` on `initState`.
-    *   Uses `BlocConsumer` to render `InventoryListLoaded` state, showing `ListView.builder`.
-    *   Each item is `Dismissible` for deletion with confirmation.
-    *   Each item has an edit icon `IconButton` that navigates to `SetupTagScreen` (passing `boxToEdit`) and refreshes the list on return.
-*   lib/features/inventory/presentation/pages/inventory_page.dart: Added an `IconButton` (Icons.list) to the `AppBar` to navigate to `AllItemsPage`.
-*   lib/features/inventory/presentation/pages/setup_tag_screen.dart: Modified to support editing existing items by accepting `StorageBox? boxToEdit`. It pre-fills form fields when editing and updates the "Write to Tag" button text and dispatch logic accordingly.
+## Project Architecture
 
-Current State and Discrepancies:
+The project follows the Clean Architecture pattern, separating the code into three main layers: `data`, `domain`, and `presentation`. This is done for the `inventory` feature.
 
-*   The NFC implementation has been stabilized and is working, with `nfc_manager` v4.1.1, `nfc_manager_ndef` v1.1.0, and manual `NdefRecord` creation.
-*   The data persistence layer has been simplified, with `InventoryRepositoryImpl` directly managing `Isar` database operations.
-*   All necessary UI components, BLoC events, states, and logic are in place for displaying, adding, editing, and deleting inventory items.
-*   The `LoadHistory` event and `HistoryLoaded` state were mentioned in previous steps but were superseded by `LoadAllItems` and `InventoryListLoaded` for a more general inventory management.
-*   Use cases for `getAllBoxes` and `getBoxById` are missing, implying their logic is now directly handled within the BLoC or repository.
-Application Status: Successfully launched on device.
+## Directory Structure
+
+### `lib`
+
+The main directory for the Dart code.
+
+- **`main.dart`**: The entry point of the application.
+- **`injection_container.dart`**: Handles dependency injection, likely using `get_it`.
+
+### `lib/core`
+
+Contains code that is shared across multiple features.
+
+- **`services/nfc_service.dart`**: Provides services for NFC tag reading and writing.
+- **`theme/theme_cubit.dart`**: Manages the application's theme using the `bloc` library.
+
+### `lib/features/inventory`
+
+The main feature of the application, which is to manage the inventory.
+
+#### `lib/features/inventory/domain`
+
+The `domain` layer contains the business logic of the application.
+
+- **`entities/storage_box.dart`**: Defines the `StorageBox` entity, which is the main business object.
+- **`repositories/inventory_repository.dart`**: Defines the interface for the inventory repository.
+- **`usecases`**: Contains the use cases for the inventory feature:
+  - `delete_inventory_item.dart`
+  - `get_inventory_item.dart`
+  - `get_inventory_list.dart`
+  - `get_last_used_item.dart`
+  - `save_inventory_item.dart`
+
+#### `lib/features/inventory/data`
+
+The `data` layer is responsible for fetching data from different sources.
+
+- **`datasources/inventory_local_data_source.dart`**: The implementation of the local data source for the inventory feature.
+- **`repositories/inventory_repository_impl.dart`**: The implementation of the `InventoryRepository` interface.
+
+#### `lib/features/inventory/presentation`
+
+The `presentation` layer is responsible for the UI.
+
+- **`bloc`**: Contains the `bloc` implementation for the inventory feature, which includes `inventory_bloc.dart`, `inventory_event.dart`, and `inventory_state.dart`.
+- **`pages`**: Contains the different pages of the inventory feature:
+  - `all_items_page.dart`
+  - `inventory_page.dart`
+  - `main_page.dart`
+  - `settings_page.dart`
+  - `setup_tag_screen.dart`
+- **`widgets/box_3d_viewer.dart`**: A widget for viewing a 3D model of a box.
+
+## Summary
+
+The project is a Flutter application that uses NFC to manage a storage inventory. It is well-structured, following the Clean Architecture pattern, and uses the `bloc` library for state management. The main feature is the inventory management, which is split into `data`, `domain`, and `presentation` layers. The application also includes a 3D viewer for storage boxes.
