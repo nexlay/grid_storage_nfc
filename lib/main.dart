@@ -18,7 +18,7 @@ class MyApp extends StatelessWidget {
     return MultiBlocProvider(
       providers: [
         BlocProvider(
-          create: (_) => di.sl<InventoryBloc>(),
+          create: (_) => di.sl<InventoryBloc>()..add(const ResetInventory()),
         ),
       ],
       child: MaterialApp(

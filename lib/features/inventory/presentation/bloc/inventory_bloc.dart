@@ -1,25 +1,62 @@
-import 'dart:convert'; // Added for jsonDecode
+import 'dart:convert';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:grid_storage_nfc/features/inventory/domain/entities/storage_box.dart';
-import 'package:grid_storage_nfc/features/inventory/domain/repositories/inventory_repository.dart';
+// Importujemy Use Cases zamiast Repozytorium
+import 'package:grid_storage_nfc/features/inventory/domain/usecases/get_inventory_list.dart';
+import 'package:grid_storage_nfc/features/inventory/domain/usecases/get_inventory_item.dart';
+import 'package:grid_storage_nfc/features/inventory/domain/usecases/get_last_used_item.dart';
+import 'package:grid_storage_nfc/features/inventory/domain/usecases/save_inventory_item.dart';
+import 'package:grid_storage_nfc/features/inventory/domain/usecases/delete_inventory_item.dart';
 import 'package:grid_storage_nfc/core/services/nfc_service.dart';
 
 part 'inventory_event.dart';
 part 'inventory_state.dart';
 
 class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
-  final InventoryRepository _inventoryRepository;
+  final GetInventoryList getInventoryList;
+  final GetInventoryItem getInventoryItem;
+  final SaveInventoryItem saveInventoryItem;
+  final DeleteInventoryItem deleteInventoryItem;
+  final GetLastUsedItem getLastUsedItem;
   final NfcService _nfcService;
 
-  InventoryBloc(this._inventoryRepository, this._nfcService)
-      : super(const InventoryInitial()) {
+  InventoryBloc({
+    required this.getInventoryList,
+    required this.getInventoryItem,
+    required this.saveInventoryItem,
+    required this.deleteInventoryItem,
+    required this.getLastUsedItem,
+    required NfcService nfcService,
+  })  : _nfcService = nfcService,
+        super(const InventoryInitial()) {
     on<ScanTagRequested>(_onScanTagRequested);
     on<UpdateQuantity>(_onUpdateQuantity);
     on<WriteTagRequested>(_onWriteTagRequested);
     on<DeleteBoxRequested>(_onDeleteBoxRequested);
     on<LoadAllItems>(_onLoadAllItems);
-    on<ResetInventory>((event, emit) => emit(const InventoryInitial()));
+    on<ResetInventory>(_onResetInventory);
+  }
+  Future<void> _onResetInventory(
+    ResetInventory event,
+    Emitter<InventoryState> emit,
+  ) async {
+    // Próbujemy załadować ostatni element
+    try {
+      final lastBox = await getLastUsedItem();
+
+      if (lastBox != null) {
+        // Jeśli mamy element, pokazujemy go
+        final isLowStock = lastBox.quantity < lastBox.threshold;
+        emit(InventoryLoaded(box: lastBox, isLowStock: isLowStock));
+      } else {
+        // Jeśli baza jest pusta, pokazujemy "Ready to Scan"
+        emit(const InventoryInitial());
+      }
+    } catch (e) {
+      // W razie błędu bezpiecznie wracamy do ekranu startowego
+      emit(const InventoryInitial());
+    }
   }
 
   Future<void> _onWriteTagRequested(
@@ -29,24 +66,24 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
     emit(const InventoryLoading());
     try {
       StorageBox boxToSave;
-
       if (event.id != null) {
-        // Editing an existing item
-        final existingBox = await _inventoryRepository.getBox(event.id!);
+        // Używamy Use Case zamiast repozytorium
+        final existingBox = await getInventoryItem(event.id!);
+
         if (existingBox == null) {
           emit(const InventoryError('Box not found for editing.'));
           return;
         }
+
         boxToSave = existingBox.copyWith(
           itemName: event.name,
           quantity: event.quantity,
           threshold: event.threshold,
           hexColor: event.color,
           lastUsed: DateTime.now(),
-          isSynced: false, // Set to false on update
+          isSynced: false,
         );
       } else {
-        // Creating a new item
         boxToSave = StorageBox()
           ..itemName = event.name
           ..quantity = event.quantity
@@ -54,14 +91,14 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
           ..hexColor = event.color
           ..modelPath = 'assets/models/box.glb'
           ..lastUsed = DateTime.now()
-          ..isSynced = false; // New item is not synced
+          ..isSynced = false;
       }
 
-      final id = await _inventoryRepository.saveBox(boxToSave);
-      // It's important to update the id of boxToSave as Isar might assign a new one
+      // Zapis przez Use Case
+      final id = await saveInventoryItem(boxToSave);
+
       boxToSave = boxToSave.copyWith(id: id);
 
-      // Only write to NFC if it's a NEW item (id was null)
       if (event.id == null) {
         await _nfcService.writeTag(id.toString());
       }
@@ -84,14 +121,11 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
         tagPayload = payload;
       });
 
-      // Allow time for NFC read
       await Future.delayed(const Duration(seconds: 2));
       await _nfcService.stopSession();
 
       if (tagPayload != null) {
         String cleanId = tagPayload!;
-
-        // Handle Legacy JSON payloads (extract ID if present)
         if (cleanId.trim().startsWith('{')) {
           try {
             final Map<String, dynamic> data = jsonDecode(cleanId);
@@ -99,11 +133,12 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
               cleanId = data['id'].toString();
             }
           } catch (e) {
-            // If JSON parse fails, attempt to use string as is
+            // ignore
           }
         }
 
-        var box = await _inventoryRepository.getBox(cleanId);
+        // Pobranie przez Use Case
+        var box = await getInventoryItem(cleanId);
 
         if (box == null) {
           emit(const InventoryError('Box not found for this tag.'));
@@ -130,10 +165,12 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
       final updatedBox = currentBox.copyWith(
         quantity: event.newQuantity,
         lastUsed: DateTime.now(),
-        isSynced: false, // Quantity update also marks as not synced
+        isSynced: false,
       );
 
-      await _inventoryRepository.saveBox(updatedBox);
+      // Zapis przez Use Case
+      await saveInventoryItem(updatedBox);
+
       final isLowStock = updatedBox.quantity < updatedBox.threshold;
       emit(InventoryLoaded(box: updatedBox, isLowStock: isLowStock));
     }
@@ -145,7 +182,8 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
   ) async {
     emit(const InventoryLoading());
     try {
-      final boxes = await _inventoryRepository.getAllBoxes();
+      // Pobranie listy przez Use Case
+      final boxes = await getInventoryList();
       emit(InventoryListLoaded(boxes: boxes));
     } catch (e) {
       emit(InventoryError('Failed to load inventory: ${e.toString()}'));
@@ -158,8 +196,9 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
   ) async {
     emit(const InventoryLoading());
     try {
-      await _inventoryRepository.deleteBox(event.boxId);
-      add(const LoadAllItems()); // Refresh the list after deletion
+      // Usunięcie przez Use Case
+      await deleteInventoryItem(event.boxId);
+      add(const LoadAllItems());
     } catch (e) {
       emit(InventoryError('Failed to delete box: ${e.toString()}'));
     }

@@ -58,6 +58,9 @@ class InventoryPage extends StatelessWidget {
           if (state is InventoryError) {
             return Center(child: Text(state.message));
           }
+          if (state is InventoryListLoaded) {
+            return const Center(child: CircularProgressIndicator());
+          }
           if (state is InventoryLoaded) {
             final box = state.box;
             return CustomScrollView(

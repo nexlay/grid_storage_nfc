@@ -1,42 +1,35 @@
+import 'package:grid_storage_nfc/features/inventory/data/datasources/inventory_local_data_source.dart';
 import 'package:grid_storage_nfc/features/inventory/domain/entities/storage_box.dart';
 import 'package:grid_storage_nfc/features/inventory/domain/repositories/inventory_repository.dart';
-import 'package:isar/isar.dart';
-import 'package:path_provider/path_provider.dart';
 
 class InventoryRepositoryImpl implements InventoryRepository {
-  final Isar isar;
+  final InventoryLocalDataSource localDataSource;
 
-  InventoryRepositoryImpl(this.isar);
-
-  static Future<Isar> init() async {
-    final dir = await getApplicationDocumentsDirectory();
-    return Isar.open(
-      [StorageBoxSchema],
-      directory: dir.path,
-    );
-  }
+  // Wstrzykujemy DataSource zamiast Isar bezpośrednio
+  InventoryRepositoryImpl({required this.localDataSource});
 
   @override
   Future<void> deleteBox(String id) async {
-    await isar.writeTxn(() async {
-      await isar.storageBoxs.delete(int.parse(id));
-    });
+    await localDataSource.deleteBox(id);
   }
 
   @override
   Future<List<StorageBox>> getAllBoxes() async {
-    return await isar.storageBoxs.where().findAll();
+    return await localDataSource.getAllBoxes();
   }
 
   @override
   Future<StorageBox?> getBox(String id) async {
-    return await isar.storageBoxs.get(int.parse(id));
+    return await localDataSource.getBox(id);
   }
 
   @override
   Future<int> saveBox(StorageBox box) async {
-    return await isar.writeTxn(() async {
-      return await isar.storageBoxs.put(box);
-    });
+    return await localDataSource.saveBox(box);
+  }
+
+  @override
+  Future<StorageBox?> getLastUsedBox() async {
+    return await localDataSource.getLastUsedBox();
   }
 }

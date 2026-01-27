@@ -5,4 +5,5 @@ abstract class InventoryRepository {
   Future<StorageBox?> getBox(String id);
   Future<List<StorageBox>> getAllBoxes();
   Future<void> deleteBox(String id);
+  Future<StorageBox?> getLastUsedBox();
 }

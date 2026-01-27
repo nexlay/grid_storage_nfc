@@ -55,12 +55,6 @@ class _AllItemsPageState extends State<AllItemsPage> {
           } else if (state is InventoryInitial) {
             // After successful deletion, reload the list
             context.read<InventoryBloc>().add(const LoadAllItems());
-          } else if (state is InventoryListLoaded &&
-              Navigator.of(context).canPop()) {
-            // When returning from edit screen, ensure the list is refreshed
-            // This is a bit of a hack, ideally would have a specific state for successful update
-            // For now, this ensures list is fresh after any operation that lands on InventoryListLoaded
-            context.read<InventoryBloc>().add(const LoadAllItems());
           }
         },
         builder: (context, state) {
