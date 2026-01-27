@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:grid_storage_nfc/core/theme/theme_cubit.dart';
 import 'package:grid_storage_nfc/features/inventory/presentation/bloc/inventory_bloc.dart';
-import 'package:grid_storage_nfc/features/inventory/presentation/pages/inventory_page.dart';
+import 'package:grid_storage_nfc/features/inventory/presentation/pages/main_page.dart';
 import 'package:grid_storage_nfc/injection_container.dart' as di;
 
 void main() async {
@@ -20,14 +21,32 @@ class MyApp extends StatelessWidget {
         BlocProvider(
           create: (_) => di.sl<InventoryBloc>()..add(const ResetInventory()),
         ),
-      ],
-      child: MaterialApp(
-        title: 'Grid Storage NFC',
-        theme: ThemeData(
-          useMaterial3: true,
-          colorScheme: ColorScheme.fromSeed(seedColor: Colors.blueGrey),
+        // Rejestracja ThemeCubit
+        BlocProvider(
+          create: (_) => di.sl<ThemeCubit>(),
         ),
-        home: const InventoryPage(),
+      ],
+      // BlocBuilder nasłuchuje zmian motywu
+      child: BlocBuilder<ThemeCubit, ThemeMode>(
+        builder: (context, themeMode) {
+          return MaterialApp(
+            title: 'Grid Storage NFC',
+            themeMode: themeMode, // Dynamiczny motyw
+            theme: ThemeData(
+              useMaterial3: true,
+              colorScheme: ColorScheme.fromSeed(
+                  seedColor: Colors.blueGrey, brightness: Brightness.light),
+            ),
+            darkTheme: ThemeData(
+              useMaterial3: true,
+              colorScheme: ColorScheme.fromSeed(
+                  seedColor: Colors.blueGrey,
+                  brightness: Brightness.dark // Tryb ciemny
+                  ),
+            ),
+            home: const MainPage(), // Startujemy od MainPage
+          );
+        },
       ),
     );
   }

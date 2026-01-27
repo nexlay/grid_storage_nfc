@@ -1,5 +1,6 @@
 import 'package:get_it/get_it.dart';
 import 'package:grid_storage_nfc/core/services/nfc_service.dart';
+import 'package:grid_storage_nfc/core/theme/theme_cubit.dart';
 import 'package:grid_storage_nfc/features/inventory/data/datasources/inventory_local_data_source.dart';
 import 'package:grid_storage_nfc/features/inventory/data/repositories/inventory_repository_impl.dart';
 import 'package:grid_storage_nfc/features/inventory/domain/repositories/inventory_repository.dart';
@@ -25,6 +26,9 @@ Future<void> init() async {
       nfcService: sl(),
     ),
   );
+
+  // Core / Theme
+  sl.registerFactory(() => ThemeCubit());
 
   // --- Use Cases ---
   sl.registerLazySingleton(() => GetInventoryList(sl()));

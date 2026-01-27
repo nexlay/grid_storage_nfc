@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_3d_controller/flutter_3d_controller.dart';
 
-class Box3DViewer extends StatelessWidget {
+class Box3DViewer extends StatefulWidget {
   final String modelPath;
   final String hexColor;
 
@@ -12,16 +12,38 @@ class Box3DViewer extends StatelessWidget {
   }) : super(key: key);
 
   @override
-  Widget build(BuildContext context) {
-    // Prosty kontroler bez zbędnych parametrów
-    final Flutter3DController controller = Flutter3DController();
+  State<Box3DViewer> createState() => _Box3DViewerState();
+}
 
+class _Box3DViewerState extends State<Box3DViewer> {
+  late Flutter3DController controller;
+  bool _isReady = false;
+
+  @override
+  void initState() {
+    super.initState();
+    controller = Flutter3DController();
+
+    Future.delayed(const Duration(milliseconds: 300), () {
+      if (mounted) {
+        setState(() {
+          _isReady = true;
+        });
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return SizedBox(
       height: 300,
-      child: Flutter3DViewer(
-        controller: controller,
-        src: modelPath,
-      ),
+      width: double.infinity,
+      child: _isReady
+          ? Flutter3DViewer(
+              controller: controller,
+              src: widget.modelPath,
+            )
+          : const Center(child: CircularProgressIndicator()),
     );
   }
 }

@@ -5,7 +5,7 @@ import 'package:grid_storage_nfc/features/inventory/presentation/bloc/inventory_
 import 'package:hexcolor/hexcolor.dart';
 
 class SetupTagScreen extends StatefulWidget {
-  final StorageBox? boxToEdit; // New optional parameter
+  final StorageBox? boxToEdit;
 
   const SetupTagScreen({Key? key, this.boxToEdit}) : super(key: key);
 
@@ -165,13 +165,14 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
                                   _formKey.currentState!.save();
                                   context.read<InventoryBloc>().add(
                                         WriteTagRequested(
-                                          id: widget.boxToEdit?.id.toString(), // Pass ID if editing
+                                          id: widget.boxToEdit?.id
+                                              .toString(), // Pass ID if editing
                                           name: _nameController.text,
                                           description: '',
-                                          quantity:
-                                              int.parse(_quantityController.text),
-                                          threshold:
-                                              int.parse(_thresholdController.text),
+                                          quantity: int.parse(
+                                              _quantityController.text),
+                                          threshold: int.parse(
+                                              _thresholdController.text),
                                           color: _selectedColor,
                                         ),
                                       );
