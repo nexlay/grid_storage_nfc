@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:grid_storage_nfc/features/inventory/presentation/bloc/inventory_bloc.dart';
 import 'package:grid_storage_nfc/features/inventory/presentation/pages/setup_tag_screen.dart';
-import 'package:hexcolor/hexcolor.dart';
+// Upewnij się, że masz ten pakiet (lub użyj metody _hexToColor, którą dodałem niżej)
+// import 'package:hexcolor/hexcolor.dart';
 
 class AllItemsPage extends StatefulWidget {
   const AllItemsPage({super.key});
@@ -31,6 +32,17 @@ class _AllItemsPageState extends State<AllItemsPage> {
         ],
       ),
     );
+  }
+
+  // Helper do kolorów (zastępuje paczkę hexcolor, jeśli jej nie ma)
+  Color _hexToColor(String hex) {
+    hex = hex.replaceAll('#', '');
+    if (hex.length == 6) hex = 'FF$hex';
+    try {
+      return Color(int.parse(hex, radix: 16));
+    } catch (e) {
+      return Colors.grey;
+    }
   }
 
   @override
@@ -71,11 +83,16 @@ class _AllItemsPageState extends State<AllItemsPage> {
               );
             } else {
               content = SliverPadding(
-                padding: const EdgeInsets.only(bottom: 80), // Miejsce na FAB
+                padding: const EdgeInsets.fromLTRB(
+                    16, 16, 16, 100), // Padding na dole na FAB
                 sliver: SliverList(
                   delegate: SliverChildBuilderDelegate(
                     (context, index) {
                       final box = state.boxes[index];
+
+                      // LOGIKA LOW STOCK
+                      final bool isLowStock = box.quantity <= box.threshold;
+
                       return Dismissible(
                         key: ValueKey(box.id),
                         direction: DismissDirection.endToStart,
@@ -95,56 +112,120 @@ class _AllItemsPageState extends State<AllItemsPage> {
                               color: Colors.red.shade900),
                         ),
                         child: Card(
-                          margin: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 6),
-                          elevation: 0, // Styl "flat" jak w nowoczesnych UI
+                          margin: const EdgeInsets.only(bottom: 12),
+                          elevation: 0,
                           shape: RoundedRectangleBorder(
-                            side: BorderSide(
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .outlineVariant),
                             borderRadius: BorderRadius.circular(12),
+                            // --- CZERWONA RAMKA JEŚLI LOW STOCK ---
+                            side: isLowStock
+                                ? BorderSide(
+                                    color: Colors.red.withOpacity(0.6),
+                                    width: 1.5)
+                                : BorderSide(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .outlineVariant),
                           ),
-                          child: ListTile(
-                            contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 16, vertical: 8),
-                            leading: CircleAvatar(
-                              backgroundColor: HexColor(box.hexColor),
-                              child: Text(
-                                box.itemName.isNotEmpty
-                                    ? box.itemName[0].toUpperCase()
-                                    : '?',
-                                style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(12),
+                            onTap: () async {
+                              // Nawigacja do edycji (lub szczegółów) po kliknięciu w kartę
+                              await Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      SetupTagScreen(boxToEdit: box),
+                                ),
+                              );
+                              if (mounted) {
+                                context
+                                    .read<InventoryBloc>()
+                                    .add(const LoadAllItems());
+                              }
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 12),
+                              child: Row(
+                                children: [
+                                  // Avatar
+                                  CircleAvatar(
+                                    backgroundColor: box.hexColor != null
+                                        ? _hexToColor(box.hexColor!)
+                                        : Colors.grey,
+                                    child: Text(
+                                      box.itemName.isNotEmpty
+                                          ? box.itemName[0].toUpperCase()
+                                          : '?',
+                                      style: const TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold),
+                                    ),
+                                  ),
+
+                                  const SizedBox(width: 16),
+
+                                  // Treść
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          box.itemName,
+                                          style: const TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w600),
+                                        ),
+                                        const SizedBox(height: 4),
+
+                                        // --- ILOŚĆ Z OSTRZEŻENIEM ---
+                                        Row(
+                                          children: [
+                                            Text(
+                                              'Quantity: ${box.quantity}',
+                                              style: TextStyle(
+                                                // Czerwony tekst jeśli niski stan
+                                                color: isLowStock
+                                                    ? Colors.red
+                                                    : Colors.grey[600],
+                                                fontWeight: isLowStock
+                                                    ? FontWeight.bold
+                                                    : FontWeight.normal,
+                                              ),
+                                            ),
+                                            if (isLowStock) ...[
+                                              const SizedBox(width: 8),
+                                              const Icon(
+                                                  Icons.warning_amber_rounded,
+                                                  color: Colors.red,
+                                                  size: 18),
+                                            ]
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+
+                                  // Ikona edycji
+                                  IconButton(
+                                    icon: const Icon(Icons.edit_outlined),
+                                    onPressed: () async {
+                                      await Navigator.of(context).push(
+                                        MaterialPageRoute(
+                                          builder: (_) =>
+                                              SetupTagScreen(boxToEdit: box),
+                                        ),
+                                      );
+                                      if (mounted) {
+                                        context
+                                            .read<InventoryBloc>()
+                                            .add(const LoadAllItems());
+                                      }
+                                    },
+                                  ),
+                                ],
                               ),
                             ),
-                            title: Text(
-                              box.itemName,
-                              style:
-                                  const TextStyle(fontWeight: FontWeight.w600),
-                            ),
-                            subtitle: Text('Quantity: ${box.quantity}'),
-                            trailing: IconButton(
-                              icon: const Icon(Icons.edit_outlined),
-                              onPressed: () async {
-                                await Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (_) =>
-                                        SetupTagScreen(boxToEdit: box),
-                                  ),
-                                );
-                                // Po powrocie odświeżamy listę
-                                if (mounted) {
-                                  context
-                                      .read<InventoryBloc>()
-                                      .add(const LoadAllItems());
-                                }
-                              },
-                            ),
-                            onTap: () {
-                              // Tu w przyszłości można dodać nawigację do szczegółów
-                            },
                           ),
                         ),
                       );
@@ -155,12 +236,10 @@ class _AllItemsPageState extends State<AllItemsPage> {
               );
             }
           } else if (state is InventoryError) {
-            // W razie błędu pokaż komunikat, ale nie blokuj całego UI
             content = SliverFillRemaining(
                 child: Center(
                     child: Text('Error loading data: ${state.message}')));
           } else {
-            // Fallback dla innych stanów (np. InventoryInitial zanim załaduje)
             content = const SliverFillRemaining(
                 child: Center(child: CircularProgressIndicator()));
           }

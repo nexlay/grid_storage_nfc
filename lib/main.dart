@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:grid_storage_nfc/core/local_storage/local_storage_cubit.dart';
+import 'package:grid_storage_nfc/core/notifications/notification_service.dart';
 import 'package:grid_storage_nfc/core/theme/theme_cubit.dart';
 import 'package:grid_storage_nfc/features/inventory/presentation/bloc/inventory_bloc.dart';
 import 'package:grid_storage_nfc/features/inventory/presentation/pages/main_page.dart';
@@ -10,6 +11,7 @@ import 'package:grid_storage_nfc/core/server_status/server_status_cubit.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await di.init();
+  await di.sl<NotificationService>().init();
   runApp(const MyApp());
 }
 
@@ -27,10 +29,7 @@ class MyApp extends StatelessWidget {
         BlocProvider(
           create: (_) => di.sl<ThemeCubit>(),
         ),
-        BlocProvider(
-          create: (_) => di.sl<ServerStatusCubit>()
-            ..checkConnection(), // Od razu sprawdź przy starcie
-        ),
+        BlocProvider(create: (_) => di.sl<ServerStatusCubit>()),
         BlocProvider(
           create: (_) => di.sl<LocalStorageCubit>()
             ..loadStats(), // Od razu ładujemy statystyki

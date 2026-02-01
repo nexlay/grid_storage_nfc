@@ -1,4 +1,5 @@
 import 'package:get_it/get_it.dart';
+import 'package:grid_storage_nfc/core/notifications/notification_service.dart';
 import 'package:http/http.dart' as http; // --- NOWE ---
 import 'package:internet_connection_checker_plus/internet_connection_checker_plus.dart'; // --- NOWE ---
 
@@ -34,6 +35,7 @@ Future<void> init() async {
       deleteInventoryItem: sl(),
       getLastUsedItem: sl(),
       nfcService: sl(),
+      notificationService: sl(),
     ),
   );
 
@@ -56,6 +58,7 @@ Future<void> init() async {
   sl.registerLazySingleton(() => GetLastUsedItem(sl()));
   sl.registerLazySingleton(() => SyncPendingItems(sl()));
   sl.registerFactory(() => LocalStorageCubit(repository: sl()));
+  sl.registerLazySingleton(() => NotificationService());
 
   // --- Repositories ---
   // Tutaj wstrzykniemy zaraz nowe zależności do konstruktora (zaktualizujemy to w następnym kroku)

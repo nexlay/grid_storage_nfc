@@ -1,8 +1,9 @@
 import 'dart:convert';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
+// Upewnij się, że import serwisu powiadomień jest poprawny
+import 'package:grid_storage_nfc/core/notifications/notification_service.dart';
 import 'package:grid_storage_nfc/features/inventory/domain/entities/storage_box.dart';
-// Importujemy Use Cases zamiast Repozytorium
 import 'package:grid_storage_nfc/features/inventory/domain/usecases/get_inventory_list.dart';
 import 'package:grid_storage_nfc/features/inventory/domain/usecases/get_inventory_item.dart';
 import 'package:grid_storage_nfc/features/inventory/domain/usecases/get_last_used_item.dart';
@@ -20,6 +21,7 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
   final DeleteInventoryItem deleteInventoryItem;
   final GetLastUsedItem getLastUsedItem;
   final NfcService _nfcService;
+  final NotificationService notificationService;
 
   InventoryBloc({
     required this.getInventoryList,
@@ -28,6 +30,7 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
     required this.deleteInventoryItem,
     required this.getLastUsedItem,
     required NfcService nfcService,
+    required this.notificationService,
   })  : _nfcService = nfcService,
         super(const InventoryInitial()) {
     on<ScanTagRequested>(_onScanTagRequested);
@@ -37,24 +40,21 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
     on<LoadAllItems>(_onLoadAllItems);
     on<ResetInventory>(_onResetInventory);
   }
+
   Future<void> _onResetInventory(
     ResetInventory event,
     Emitter<InventoryState> emit,
   ) async {
-    // Próbujemy załadować ostatni element
     try {
       final lastBox = await getLastUsedItem();
 
       if (lastBox != null) {
-        // Jeśli mamy element, pokazujemy go
-        final isLowStock = lastBox.quantity < lastBox.threshold;
+        final isLowStock = lastBox.quantity <= lastBox.threshold;
         emit(InventoryLoaded(box: lastBox, isLowStock: isLowStock));
       } else {
-        // Jeśli baza jest pusta, pokazujemy "Ready to Scan"
         emit(const InventoryInitial());
       }
     } catch (e) {
-      // W razie błędu bezpiecznie wracamy do ekranu startowego
       emit(const InventoryInitial());
     }
   }
@@ -67,7 +67,6 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
     try {
       StorageBox boxToSave;
       if (event.id != null) {
-        // Używamy Use Case zamiast repozytorium
         final existingBox = await getInventoryItem(event.id!);
 
         if (existingBox == null) {
@@ -94,9 +93,7 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
           ..isSynced = false;
       }
 
-      // Zapis przez Use Case
       final id = await saveInventoryItem(boxToSave);
-
       boxToSave = boxToSave.copyWith(id: id);
 
       if (event.id == null) {
@@ -137,7 +134,6 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
           }
         }
 
-        // Pobranie przez Use Case
         var box = await getInventoryItem(cleanId);
 
         if (box == null) {
@@ -145,7 +141,7 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
           return;
         }
 
-        final isLowStock = box.quantity < box.threshold;
+        final isLowStock = box.quantity <= box.threshold;
         emit(InventoryLoaded(box: box, isLowStock: isLowStock));
       } else {
         emit(const InventoryError('Could not read NFC tag.'));
@@ -162,16 +158,28 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
     final currentState = state;
     if (currentState is InventoryLoaded) {
       final currentBox = currentState.box;
+
       final updatedBox = currentBox.copyWith(
         quantity: event.newQuantity,
         lastUsed: DateTime.now(),
         isSynced: false,
       );
 
-      // Zapis przez Use Case
+      // 1. Zapis do bazy (Lokalnej + QNAP jeśli jest sieć)
       await saveInventoryItem(updatedBox);
 
-      final isLowStock = updatedBox.quantity < updatedBox.threshold;
+      // 2. --- LOGIKA POWIADOMIENIA ---
+      // Sprawdzamy:
+      // a) Czy ilość jest mniejsza lub równa progowi (threshold)
+      // b) Czy ilość ZMALAŁA (updatedBox.quantity < currentBox.quantity) - żeby nie krzyczeć przy dodawaniu
+      if (updatedBox.quantity <= updatedBox.threshold &&
+          updatedBox.quantity < currentBox.quantity) {
+        await notificationService.showLowStockNotification(
+            updatedBox.itemName, updatedBox.quantity);
+      }
+
+      // 3. Aktualizacja UI
+      final isLowStock = updatedBox.quantity <= updatedBox.threshold;
       emit(InventoryLoaded(box: updatedBox, isLowStock: isLowStock));
     }
   }
@@ -182,7 +190,6 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
   ) async {
     emit(const InventoryLoading());
     try {
-      // Pobranie listy przez Use Case
       final boxes = await getInventoryList();
       emit(InventoryListLoaded(boxes: boxes));
     } catch (e) {
@@ -196,7 +203,6 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
   ) async {
     emit(const InventoryLoading());
     try {
-      // Usunięcie przez Use Case
       await deleteInventoryItem(event.boxId);
       add(const LoadAllItems());
     } catch (e) {

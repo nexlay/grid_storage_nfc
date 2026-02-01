@@ -3,7 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:grid_storage_nfc/features/inventory/domain/entities/storage_box.dart';
 import 'package:grid_storage_nfc/features/inventory/presentation/bloc/inventory_bloc.dart';
 import 'package:grid_storage_nfc/features/inventory/presentation/pages/setup_tag_screen.dart';
-// WAŻNE: Import widgetu 3D, żeby model działał
+// WAŻNE: Import widgetu 3D
 import 'package:grid_storage_nfc/features/inventory/presentation/widgets/box_3d_viewer.dart';
 import 'package:intl/intl.dart';
 
@@ -132,10 +132,11 @@ class InventoryPage extends StatelessWidget {
         SliverAppBar.large(
           title: ListTile(
             title: Text(box.itemName),
+            titleTextStyle:
+                const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             subtitle: Text(
               'Last updated: ${_formatDate(box.lastUsed)}',
             ),
-            enabled: false,
           ),
         ),
         SliverPadding(
@@ -143,12 +144,12 @@ class InventoryPage extends StatelessWidget {
               24, 24, 24, 100), // Padding na dole dla FAB
           sliver: SliverList(
             delegate: SliverChildListDelegate([
-              // 1. KARTA Z MODELEM 3D (Naprawiona)
+              // 1. KARTA Z MODELEM 3D
               _buildImageCard(context, box),
 
-              const SizedBox(height: 32),
+              const SizedBox(height: 40),
 
-              // 2. STEPPER ILOŚCI
+              // 2. STEPPER ILOŚCI (Zaktualizowany o logikę Low Stock)
               const Center(
                 child: Text(
                   "Quantity in stock",
@@ -158,15 +159,12 @@ class InventoryPage extends StatelessWidget {
                       fontWeight: FontWeight.w500),
                 ),
               ),
-              const SizedBox(height: 16),
 
               _buildQuantityStepper(context, box),
 
-              const SizedBox(height: 40),
+              const SizedBox(height: 80),
 
-              const SizedBox(height: 40),
-
-              // 4. PRZYCISKI AKCJI (Edit & Delete - Tekstowe na dole)
+              // 3. PRZYCISKI AKCJI (Edit & Delete - Tekstowe na dole)
               Row(
                 children: [
                   Expanded(
@@ -243,7 +241,7 @@ class InventoryPage extends StatelessWidget {
                   size: 150, color: Colors.white.withOpacity(0.1)),
             ),
 
-            // WŁAŚCIWY WIDGET 3D (Naprawiony)
+            // WŁAŚCIWY WIDGET 3D
             Box3DViewer(
               modelPath: box.modelPath,
               hexColor: box.hexColor,
@@ -254,15 +252,31 @@ class InventoryPage extends StatelessWidget {
     );
   }
 
+  // --- ZMODYFIKOWANY STEPPER (OSTRZEŻENIA) ---
   Widget _buildQuantityStepper(BuildContext context, StorageBox box) {
+    // 1. Sprawdzenie czy stan jest niski
+    final bool isLowStock = box.quantity <= box.threshold;
+
+    // 2. Ustalenie kolorów na podstawie stanu
+    final Color quantityColor = isLowStock
+        ? Colors.red
+        : Theme.of(context).textTheme.bodyLarge?.color ?? Colors.black;
+
+    final Color containerColor = isLowStock
+        ? Colors.red.withOpacity(0.1) // Czerwone tło ostrzegawcze
+        : Theme.of(context)
+            .colorScheme
+            .surfaceContainerHighest
+            .withOpacity(0.3);
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       decoration: BoxDecoration(
-        color: Theme.of(context)
-            .colorScheme
-            .surfaceContainerHighest
-            .withOpacity(0.3),
+        color: containerColor,
         borderRadius: BorderRadius.circular(50),
+        // Opcjonalnie: Czerwona ramka
+        border:
+            isLowStock ? Border.all(color: Colors.red.withOpacity(0.5)) : null,
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -279,10 +293,27 @@ class InventoryPage extends StatelessWidget {
               }
             },
           ),
-          Text(
-            '${box.quantity}',
-            style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
+
+          // Środek: Ilość + ewentualna ikona ostrzegawcza
+          Row(
+            children: [
+              if (isLowStock)
+                const Padding(
+                  padding: EdgeInsets.only(right: 8.0),
+                  child: Icon(Icons.warning_amber_rounded,
+                      color: Colors.red, size: 28),
+                ),
+              Text(
+                '${box.quantity}',
+                style: TextStyle(
+                    fontSize: 32,
+                    fontWeight: FontWeight.bold,
+                    color: quantityColor // Dynamiczny kolor tekstu
+                    ),
+              ),
+            ],
           ),
+
           _buildCircleButton(
             context,
             icon: Icons.add,
