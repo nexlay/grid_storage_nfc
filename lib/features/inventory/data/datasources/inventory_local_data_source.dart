@@ -37,7 +37,7 @@ class InventoryLocalDataSourceImpl implements InventoryLocalDataSource {
 
       return result;
     } catch (e) {
-      throw e;
+      rethrow;
     }
   }
 

@@ -12,9 +12,9 @@ class ThemeCubit extends Cubit<ThemeMode> {
   void _loadTheme() async {
     final prefs = await SharedPreferences.getInstance();
     final savedTheme = prefs.getString(_themeKey);
-    if (savedTheme == 'light')
+    if (savedTheme == 'light') {
       emit(ThemeMode.light);
-    else if (savedTheme == 'dark')
+    } else if (savedTheme == 'dark')
       emit(ThemeMode.dark);
     else
       emit(ThemeMode.system);
@@ -22,9 +22,9 @@ class ThemeCubit extends Cubit<ThemeMode> {
 
   void updateTheme(ThemeMode mode) async {
     final prefs = await SharedPreferences.getInstance();
-    if (mode == ThemeMode.light)
+    if (mode == ThemeMode.light) {
       await prefs.setString(_themeKey, 'light');
-    else if (mode == ThemeMode.dark)
+    } else if (mode == ThemeMode.dark)
       await prefs.setString(_themeKey, 'dark');
     else
       await prefs.remove(_themeKey);

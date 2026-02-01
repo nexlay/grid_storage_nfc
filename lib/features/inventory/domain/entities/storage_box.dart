@@ -4,7 +4,7 @@ part 'storage_box.g.dart';
 
 @collection
 class StorageBox {
-  Id id = Isar.autoIncrement;
+  Id id = Isar.autoIncrement; // Lokalne ID (Isar)
 
   late String itemName;
   late int quantity;
@@ -14,10 +14,41 @@ class StorageBox {
   late DateTime lastUsed;
 
   bool isSynced = false;
-  String? remoteId;
+  String? remoteId; // To będzie ID z PostgreSQL (jako String)
 
-  // Brak konstruktora StorageBox({required ...}) !!!
+  // Konstruktor domyślny
+  StorageBox();
 
+  // --- NOWOŚĆ: Metody do komunikacji z API ---
+
+  // 1. Zamiana obiektu na JSON (do wysyłki na serwer)
+  Map<String, dynamic> toJson() {
+    return {
+      // Klucze muszą pasować do nazw kolumn w bazie SQL (snake_case)
+      'item_name': itemName,
+      'quantity': quantity,
+      'threshold': threshold,
+      'hex_color': hexColor,
+      'model_path': modelPath,
+      'last_used': lastUsed.toIso8601String(),
+      // Nie wysyłamy 'id' (lokalnego), baza sama nada swoje ID
+    };
+  }
+
+  // 2. Tworzenie obiektu z JSON (z serwera)
+  factory StorageBox.fromJson(Map<String, dynamic> json) {
+    return StorageBox()
+      ..remoteId = json['id'].toString() // Mapujemy ID z bazy na remoteId
+      ..itemName = json['item_name'] ?? ''
+      ..quantity = json['quantity'] ?? 0
+      ..threshold = json['threshold'] ?? 0
+      ..hexColor = json['hex_color'] ?? '#FFFFFF'
+      ..modelPath = json['model_path'] ?? ''
+      ..lastUsed = DateTime.tryParse(json['last_used'] ?? '') ?? DateTime.now()
+      ..isSynced = true; // Skoro przyszło z serwera, to jest zsynchronizowane
+  }
+
+  // Twoja metoda copyWith (pozostaje bez zmian, skróciłem dla czytelności tutaj)
   StorageBox copyWith({
     Id? id,
     String? itemName,

@@ -7,10 +7,10 @@ class Box3DViewer extends StatefulWidget {
   final String hexColor;
 
   const Box3DViewer({
-    Key? key,
+    super.key,
     required this.modelPath,
     required this.hexColor,
-  }) : super(key: key);
+  });
 
   @override
   State<Box3DViewer> createState() => _Box3DViewerState();

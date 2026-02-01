@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:grid_storage_nfc/core/local_storage/local_storage_cubit.dart';
 import 'package:grid_storage_nfc/core/theme/theme_cubit.dart';
 import 'package:grid_storage_nfc/features/inventory/presentation/bloc/inventory_bloc.dart';
 import 'package:grid_storage_nfc/features/inventory/presentation/pages/main_page.dart';
 import 'package:grid_storage_nfc/injection_container.dart' as di;
+import 'package:grid_storage_nfc/core/server_status/server_status_cubit.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -12,7 +14,7 @@ void main() async {
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({Key? key}) : super(key: key);
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -24,6 +26,14 @@ class MyApp extends StatelessWidget {
         // Rejestracja ThemeCubit
         BlocProvider(
           create: (_) => di.sl<ThemeCubit>(),
+        ),
+        BlocProvider(
+          create: (_) => di.sl<ServerStatusCubit>()
+            ..checkConnection(), // Od razu sprawdź przy starcie
+        ),
+        BlocProvider(
+          create: (_) => di.sl<LocalStorageCubit>()
+            ..loadStats(), // Od razu ładujemy statystyki
         ),
       ],
       // BlocBuilder nasłuchuje zmian motywu

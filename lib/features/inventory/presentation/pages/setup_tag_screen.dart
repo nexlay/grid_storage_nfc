@@ -7,7 +7,7 @@ import 'package:hexcolor/hexcolor.dart';
 class SetupTagScreen extends StatefulWidget {
   final StorageBox? boxToEdit;
 
-  const SetupTagScreen({Key? key, this.boxToEdit}) : super(key: key);
+  const SetupTagScreen({super.key, this.boxToEdit});
 
   @override
   State<SetupTagScreen> createState() => _SetupTagScreenState();

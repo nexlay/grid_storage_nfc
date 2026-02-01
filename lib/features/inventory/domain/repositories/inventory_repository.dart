@@ -6,4 +6,6 @@ abstract class InventoryRepository {
   Future<List<StorageBox>> getAllBoxes();
   Future<void> deleteBox(String id);
   Future<StorageBox?> getLastUsedBox();
+  Future<void> syncPendingItems();
+  Future<Map<String, int>> getLocalStats();
 }

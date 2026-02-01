@@ -60,8 +60,9 @@ class NfcService {
             if (ndef == null || !ndef.isWritable) {
               await NfcManager.instance
                   .stopSession(errorMessageIos: 'Tag is not writable');
-              if (!completer.isCompleted)
+              if (!completer.isCompleted) {
                 completer.completeError('Tag is not writable');
+              }
               return;
             }
 
