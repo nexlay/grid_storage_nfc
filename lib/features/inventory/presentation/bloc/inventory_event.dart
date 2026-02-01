@@ -41,6 +41,8 @@ class WriteTagRequested extends InventoryEvent {
   final int quantity;
   final int threshold;
   final String color;
+  final bool writeToNfc;
+  final String? barcode;
 
   const WriteTagRequested({
     this.id,
@@ -49,6 +51,8 @@ class WriteTagRequested extends InventoryEvent {
     required this.quantity,
     required this.threshold,
     required this.color,
+    this.writeToNfc = true,
+    this.barcode,
   });
 
   @override
@@ -59,7 +63,17 @@ class WriteTagRequested extends InventoryEvent {
         quantity,
         threshold,
         color,
+        writeToNfc,
+        barcode ?? '',
       ];
+}
+
+class ProcessScannedCode extends InventoryEvent {
+  final String rawCode;
+  const ProcessScannedCode(this.rawCode);
+
+  @override
+  List<Object> get props => [rawCode];
 }
 
 // Renamed event

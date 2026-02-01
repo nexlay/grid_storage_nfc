@@ -17,43 +17,48 @@ const StorageBoxSchema = CollectionSchema(
   name: r'StorageBox',
   id: 8396087194618730712,
   properties: {
-    r'hexColor': PropertySchema(
+    r'barcode': PropertySchema(
       id: 0,
+      name: r'barcode',
+      type: IsarType.string,
+    ),
+    r'hexColor': PropertySchema(
+      id: 1,
       name: r'hexColor',
       type: IsarType.string,
     ),
     r'isSynced': PropertySchema(
-      id: 1,
+      id: 2,
       name: r'isSynced',
       type: IsarType.bool,
     ),
     r'itemName': PropertySchema(
-      id: 2,
+      id: 3,
       name: r'itemName',
       type: IsarType.string,
     ),
     r'lastUsed': PropertySchema(
-      id: 3,
+      id: 4,
       name: r'lastUsed',
       type: IsarType.dateTime,
     ),
     r'modelPath': PropertySchema(
-      id: 4,
+      id: 5,
       name: r'modelPath',
       type: IsarType.string,
     ),
     r'quantity': PropertySchema(
-      id: 5,
+      id: 6,
       name: r'quantity',
       type: IsarType.long,
     ),
     r'remoteId': PropertySchema(
-      id: 6,
+      id: 7,
       name: r'remoteId',
       type: IsarType.string,
     ),
     r'threshold': PropertySchema(
-      id: 7,
+      id: 8,
       name: r'threshold',
       type: IsarType.long,
     )
@@ -78,6 +83,12 @@ int _storageBoxEstimateSize(
   Map<Type, List<int>> allOffsets,
 ) {
   var bytesCount = offsets.last;
+  {
+    final value = object.barcode;
+    if (value != null) {
+      bytesCount += 3 + value.length * 3;
+    }
+  }
   bytesCount += 3 + object.hexColor.length * 3;
   bytesCount += 3 + object.itemName.length * 3;
   bytesCount += 3 + object.modelPath.length * 3;
@@ -96,14 +107,15 @@ void _storageBoxSerialize(
   List<int> offsets,
   Map<Type, List<int>> allOffsets,
 ) {
-  writer.writeString(offsets[0], object.hexColor);
-  writer.writeBool(offsets[1], object.isSynced);
-  writer.writeString(offsets[2], object.itemName);
-  writer.writeDateTime(offsets[3], object.lastUsed);
-  writer.writeString(offsets[4], object.modelPath);
-  writer.writeLong(offsets[5], object.quantity);
-  writer.writeString(offsets[6], object.remoteId);
-  writer.writeLong(offsets[7], object.threshold);
+  writer.writeString(offsets[0], object.barcode);
+  writer.writeString(offsets[1], object.hexColor);
+  writer.writeBool(offsets[2], object.isSynced);
+  writer.writeString(offsets[3], object.itemName);
+  writer.writeDateTime(offsets[4], object.lastUsed);
+  writer.writeString(offsets[5], object.modelPath);
+  writer.writeLong(offsets[6], object.quantity);
+  writer.writeString(offsets[7], object.remoteId);
+  writer.writeLong(offsets[8], object.threshold);
 }
 
 StorageBox _storageBoxDeserialize(
@@ -113,15 +125,16 @@ StorageBox _storageBoxDeserialize(
   Map<Type, List<int>> allOffsets,
 ) {
   final object = StorageBox();
-  object.hexColor = reader.readString(offsets[0]);
+  object.barcode = reader.readStringOrNull(offsets[0]);
+  object.hexColor = reader.readString(offsets[1]);
   object.id = id;
-  object.isSynced = reader.readBool(offsets[1]);
-  object.itemName = reader.readString(offsets[2]);
-  object.lastUsed = reader.readDateTime(offsets[3]);
-  object.modelPath = reader.readString(offsets[4]);
-  object.quantity = reader.readLong(offsets[5]);
-  object.remoteId = reader.readStringOrNull(offsets[6]);
-  object.threshold = reader.readLong(offsets[7]);
+  object.isSynced = reader.readBool(offsets[2]);
+  object.itemName = reader.readString(offsets[3]);
+  object.lastUsed = reader.readDateTime(offsets[4]);
+  object.modelPath = reader.readString(offsets[5]);
+  object.quantity = reader.readLong(offsets[6]);
+  object.remoteId = reader.readStringOrNull(offsets[7]);
+  object.threshold = reader.readLong(offsets[8]);
   return object;
 }
 
@@ -133,20 +146,22 @@ P _storageBoxDeserializeProp<P>(
 ) {
   switch (propertyId) {
     case 0:
-      return (reader.readString(offset)) as P;
-    case 1:
-      return (reader.readBool(offset)) as P;
-    case 2:
-      return (reader.readString(offset)) as P;
-    case 3:
-      return (reader.readDateTime(offset)) as P;
-    case 4:
-      return (reader.readString(offset)) as P;
-    case 5:
-      return (reader.readLong(offset)) as P;
-    case 6:
       return (reader.readStringOrNull(offset)) as P;
+    case 1:
+      return (reader.readString(offset)) as P;
+    case 2:
+      return (reader.readBool(offset)) as P;
+    case 3:
+      return (reader.readString(offset)) as P;
+    case 4:
+      return (reader.readDateTime(offset)) as P;
+    case 5:
+      return (reader.readString(offset)) as P;
+    case 6:
+      return (reader.readLong(offset)) as P;
     case 7:
+      return (reader.readStringOrNull(offset)) as P;
+    case 8:
       return (reader.readLong(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -244,6 +259,155 @@ extension StorageBoxQueryWhere
 
 extension StorageBoxQueryFilter
     on QueryBuilder<StorageBox, StorageBox, QFilterCondition> {
+  QueryBuilder<StorageBox, StorageBox, QAfterFilterCondition> barcodeIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'barcode',
+      ));
+    });
+  }
+
+  QueryBuilder<StorageBox, StorageBox, QAfterFilterCondition>
+      barcodeIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'barcode',
+      ));
+    });
+  }
+
+  QueryBuilder<StorageBox, StorageBox, QAfterFilterCondition> barcodeEqualTo(
+    String? value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'barcode',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StorageBox, StorageBox, QAfterFilterCondition>
+      barcodeGreaterThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'barcode',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StorageBox, StorageBox, QAfterFilterCondition> barcodeLessThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'barcode',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StorageBox, StorageBox, QAfterFilterCondition> barcodeBetween(
+    String? lower,
+    String? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'barcode',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StorageBox, StorageBox, QAfterFilterCondition> barcodeStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'barcode',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StorageBox, StorageBox, QAfterFilterCondition> barcodeEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'barcode',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StorageBox, StorageBox, QAfterFilterCondition> barcodeContains(
+      String value,
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'barcode',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StorageBox, StorageBox, QAfterFilterCondition> barcodeMatches(
+      String pattern,
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'barcode',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StorageBox, StorageBox, QAfterFilterCondition> barcodeIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'barcode',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<StorageBox, StorageBox, QAfterFilterCondition>
+      barcodeIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'barcode',
+        value: '',
+      ));
+    });
+  }
+
   QueryBuilder<StorageBox, StorageBox, QAfterFilterCondition> hexColorEqualTo(
     String value, {
     bool caseSensitive = true,
@@ -1031,6 +1195,18 @@ extension StorageBoxQueryLinks
 
 extension StorageBoxQuerySortBy
     on QueryBuilder<StorageBox, StorageBox, QSortBy> {
+  QueryBuilder<StorageBox, StorageBox, QAfterSortBy> sortByBarcode() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'barcode', Sort.asc);
+    });
+  }
+
+  QueryBuilder<StorageBox, StorageBox, QAfterSortBy> sortByBarcodeDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'barcode', Sort.desc);
+    });
+  }
+
   QueryBuilder<StorageBox, StorageBox, QAfterSortBy> sortByHexColor() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'hexColor', Sort.asc);
@@ -1130,6 +1306,18 @@ extension StorageBoxQuerySortBy
 
 extension StorageBoxQuerySortThenBy
     on QueryBuilder<StorageBox, StorageBox, QSortThenBy> {
+  QueryBuilder<StorageBox, StorageBox, QAfterSortBy> thenByBarcode() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'barcode', Sort.asc);
+    });
+  }
+
+  QueryBuilder<StorageBox, StorageBox, QAfterSortBy> thenByBarcodeDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'barcode', Sort.desc);
+    });
+  }
+
   QueryBuilder<StorageBox, StorageBox, QAfterSortBy> thenByHexColor() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'hexColor', Sort.asc);
@@ -1241,6 +1429,13 @@ extension StorageBoxQuerySortThenBy
 
 extension StorageBoxQueryWhereDistinct
     on QueryBuilder<StorageBox, StorageBox, QDistinct> {
+  QueryBuilder<StorageBox, StorageBox, QDistinct> distinctByBarcode(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'barcode', caseSensitive: caseSensitive);
+    });
+  }
+
   QueryBuilder<StorageBox, StorageBox, QDistinct> distinctByHexColor(
       {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
@@ -1299,6 +1494,12 @@ extension StorageBoxQueryProperty
   QueryBuilder<StorageBox, int, QQueryOperations> idProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'id');
+    });
+  }
+
+  QueryBuilder<StorageBox, String?, QQueryOperations> barcodeProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'barcode');
     });
   }
 

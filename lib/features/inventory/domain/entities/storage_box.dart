@@ -12,6 +12,7 @@ class StorageBox {
   late String hexColor;
   late String modelPath;
   late DateTime lastUsed;
+  String? barcode;
 
   bool isSynced = false;
   String? remoteId; // To będzie ID z PostgreSQL (jako String)
@@ -31,7 +32,7 @@ class StorageBox {
       'hex_color': hexColor,
       'model_path': modelPath,
       'last_used': lastUsed.toIso8601String(),
-      // Nie wysyłamy 'id' (lokalnego), baza sama nada swoje ID
+      'barcode': barcode,
     };
   }
 
@@ -45,7 +46,8 @@ class StorageBox {
       ..hexColor = json['hex_color'] ?? '#FFFFFF'
       ..modelPath = json['model_path'] ?? ''
       ..lastUsed = DateTime.tryParse(json['last_used'] ?? '') ?? DateTime.now()
-      ..isSynced = true; // Skoro przyszło z serwera, to jest zsynchronizowane
+      ..isSynced = true // Skoro przyszło z serwera, to jest zsynchronizowane
+      ..barcode = json['barcode'];
   }
 
   // Twoja metoda copyWith (pozostaje bez zmian, skróciłem dla czytelności tutaj)
@@ -59,6 +61,7 @@ class StorageBox {
     DateTime? lastUsed,
     bool? isSynced,
     String? remoteId,
+    String? barcode,
   }) {
     return StorageBox()
       ..id = id ?? this.id
@@ -69,6 +72,7 @@ class StorageBox {
       ..modelPath = modelPath ?? this.modelPath
       ..lastUsed = lastUsed ?? this.lastUsed
       ..isSynced = isSynced ?? this.isSynced
-      ..remoteId = remoteId ?? this.remoteId;
+      ..remoteId = remoteId ?? this.remoteId
+      ..barcode = barcode ?? this.barcode;
   }
 }

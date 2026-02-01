@@ -6,8 +6,15 @@ import 'package:hexcolor/hexcolor.dart';
 
 class SetupTagScreen extends StatefulWidget {
   final StorageBox? boxToEdit;
+  final bool isNfcMode;
+  final String? scannedCode;
 
-  const SetupTagScreen({super.key, this.boxToEdit});
+  const SetupTagScreen({
+    super.key,
+    this.boxToEdit,
+    this.isNfcMode = true,
+    this.scannedCode,
+  });
 
   @override
   State<SetupTagScreen> createState() => _SetupTagScreenState();
@@ -16,7 +23,6 @@ class SetupTagScreen extends StatefulWidget {
 class _SetupTagScreenState extends State<SetupTagScreen> {
   final _formKey = GlobalKey<FormState>();
 
-  // Kontrolery
   late TextEditingController _nameController;
   late TextEditingController _quantityController;
   late TextEditingController _thresholdController;
@@ -37,12 +43,10 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
   @override
   void initState() {
     super.initState();
-    // Inicjalizacja kontrolerów
     _nameController = TextEditingController();
     _quantityController = TextEditingController();
     _thresholdController = TextEditingController();
 
-    // Wypełnienie danymi, jeśli edytujemy istniejący przedmiot
     if (widget.boxToEdit != null) {
       _nameController.text = widget.boxToEdit!.itemName;
       _quantityController.text = widget.boxToEdit!.quantity.toString();
@@ -59,30 +63,67 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
     super.dispose();
   }
 
-  // Funkcja obsługująca zatwierdzenie formularza
   void _submit() {
     if (_formKey.currentState!.validate()) {
-      // Ukryj klawiaturę
       FocusScope.of(context).unfocus();
 
       context.read<InventoryBloc>().add(
             WriteTagRequested(
-              id: widget.boxToEdit?.id
-                  .toString(), // Przekaż ID tylko przy edycji
+              id: widget.boxToEdit?.id.toString(),
               name: _nameController.text,
-              description: '', // Puste, zgodnie z Twoją logiką
+              description: '',
               quantity: int.parse(_quantityController.text),
               threshold: int.parse(_thresholdController.text),
               color: _selectedColor,
+              writeToNfc: widget.isNfcMode,
+              barcode: widget.boxToEdit?.barcode ?? widget.scannedCode,
             ),
           );
     }
   }
 
+  // Funkcja usuwania
+  void _confirmDelete() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Item?'),
+        content: Text(
+            'Are you sure you want to delete "${widget.boxToEdit?.itemName}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx); // Zamknij dialog
+              // Wyślij event usuwania
+              context.read<InventoryBloc>().add(
+                    DeleteBoxRequested(boxId: widget.boxToEdit!.id.toString()),
+                  );
+              // Zamknij ekran edycji i wróć do listy
+              Navigator.pop(context);
+            },
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Używamy Theme, aby kolory pasowały do trybu ciemnego/jasnego
     final theme = Theme.of(context);
+    final bool isEditing = widget.boxToEdit != null;
+    final bool useNfc = widget.isNfcMode && !isEditing;
+
+    String appBarTitle =
+        isEditing ? 'Edit Item' : (useNfc ? 'Setup New Tag' : 'Setup New Item');
+    String buttonText =
+        isEditing ? 'Update Database' : (useNfc ? 'Write to Tag' : 'Save Item');
+    IconData buttonIcon =
+        isEditing ? Icons.save_as : (useNfc ? Icons.nfc : Icons.save);
 
     return BlocListener<InventoryBloc, InventoryState>(
       listener: (context, state) {
@@ -93,133 +134,133 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
         if (state is InventoryLoaded && state.message != null) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(state.message!),
-              backgroundColor: Colors.green,
-            ),
+                content: Text(state.message!), backgroundColor: Colors.green),
           );
-          Navigator.of(context)
-              .pop(); // Wróć do poprzedniego ekranu po sukcesie
+          Navigator.of(context).pop();
         } else if (state is InventoryError) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(state.message),
-              backgroundColor: theme.colorScheme.error,
-            ),
+                content: Text(state.message),
+                backgroundColor: theme.colorScheme.error),
           );
         }
       },
       child: Scaffold(
         appBar: AppBar(
-          title: Text(widget.boxToEdit == null ? 'Setup New Tag' : 'Edit Item'),
+          title: Text(appBarTitle),
           centerTitle: true,
-          elevation: 0,
+          // Usunąłem actions z AppBar zgodnie z życzeniem
         ),
         body: Stack(
           children: [
-            // Główna zawartość formularza
             SingleChildScrollView(
               padding: const EdgeInsets.all(24.0),
               child: Form(
                 key: _formKey,
                 child: AbsorbPointer(
-                  absorbing: _isLoading, // Blokuj interakcję podczas ładowania
+                  absorbing: _isLoading,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // --- Sekcja 1: Informacje Podstawowe ---
-                      Text(
-                        "Item Details",
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          color: theme.colorScheme.primary,
-                          fontWeight: FontWeight.bold,
+                      // Potwierdzenie kodu QR
+                      if (widget.scannedCode != null && !isEditing)
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          margin: const EdgeInsets.only(bottom: 24),
+                          decoration: BoxDecoration(
+                            color: Colors.green.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.green),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.qr_code, color: Colors.green),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text('Linking Barcode:',
+                                        style: TextStyle(
+                                            fontSize: 12, color: Colors.green)),
+                                    Text(widget.scannedCode!,
+                                        style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 16)),
+                                  ],
+                                ),
+                              ),
+                              const Icon(Icons.check_circle,
+                                  color: Colors.green),
+                            ],
+                          ),
                         ),
-                      ),
+
+                      Text("Item Details",
+                          style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: theme.colorScheme.primary)),
                       const SizedBox(height: 16),
 
-                      // Pole Name
                       TextFormField(
                         controller: _nameController,
                         decoration: InputDecoration(
                           labelText: 'Item Name',
-                          hintText: 'e.g. Screws M4',
                           prefixIcon: const Icon(Icons.label_outline),
                           border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
+                              borderRadius: BorderRadius.circular(12)),
                           filled: true,
-                          fillColor: theme.colorScheme.surfaceContainerHighest
-                              .withOpacity(0.3),
                         ),
-                        validator: (value) => value == null || value.isEmpty
-                            ? 'Please enter a name'
-                            : null,
+                        validator: (v) =>
+                            v == null || v.isEmpty ? 'Required' : null,
                       ),
                       const SizedBox(height: 20),
 
-                      // Wiersz z Ilością i Progiem
                       Row(
                         children: [
                           Expanded(
-                            child: TextFormField(
-                              controller: _quantityController,
-                              keyboardType: TextInputType.number,
-                              decoration: InputDecoration(
+                              child: TextFormField(
+                            controller: _quantityController,
+                            keyboardType: TextInputType.number,
+                            decoration: InputDecoration(
                                 labelText: 'Quantity',
                                 prefixIcon: const Icon(Icons.numbers),
                                 border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                filled: true,
-                                fillColor: theme
-                                    .colorScheme.surfaceContainerHighest
-                                    .withOpacity(0.3),
-                              ),
-                              validator: (value) =>
-                                  value == null || int.tryParse(value) == null
-                                      ? 'Invalid number'
-                                      : null,
-                            ),
-                          ),
+                                    borderRadius: BorderRadius.circular(12)),
+                                filled: true),
+                            validator: (v) =>
+                                v == null || int.tryParse(v) == null
+                                    ? 'Invalid'
+                                    : null,
+                          )),
                           const SizedBox(width: 16),
                           Expanded(
-                            child: TextFormField(
-                              controller: _thresholdController,
-                              keyboardType: TextInputType.number,
-                              decoration: InputDecoration(
+                              child: TextFormField(
+                            controller: _thresholdController,
+                            keyboardType: TextInputType.number,
+                            decoration: InputDecoration(
                                 labelText: 'Min. Alert',
                                 prefixIcon:
                                     const Icon(Icons.warning_amber_rounded),
                                 border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                filled: true,
-                                fillColor: theme
-                                    .colorScheme.surfaceContainerHighest
-                                    .withOpacity(0.3),
-                              ),
-                              validator: (value) =>
-                                  value == null || int.tryParse(value) == null
-                                      ? 'Invalid number'
-                                      : null,
-                            ),
-                          ),
+                                    borderRadius: BorderRadius.circular(12)),
+                                filled: true),
+                            validator: (v) =>
+                                v == null || int.tryParse(v) == null
+                                    ? 'Invalid'
+                                    : null,
+                          )),
                         ],
                       ),
-
                       const SizedBox(height: 32),
 
-                      // --- Sekcja 2: Wybór Koloru ---
-                      Text(
-                        "Tag Appearance",
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          color: theme.colorScheme.primary,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                      Text("Appearance",
+                          style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: theme.colorScheme.primary)),
                       const SizedBox(height: 16),
-
                       SizedBox(
-                        height: 80,
+                        height: 60,
                         child: ListView.separated(
                           scrollDirection: Axis.horizontal,
                           itemCount: _colors.length,
@@ -228,71 +269,74 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
                           itemBuilder: (context, index) {
                             final colorHex = _colors[index];
                             final isSelected = _selectedColor == colorHex;
-
                             return GestureDetector(
-                              onTap: () {
-                                setState(() {
-                                  _selectedColor = colorHex;
-                                });
-                              },
-                              child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 200),
-                                width: isSelected ? 56 : 48,
-                                height: isSelected ? 56 : 48,
+                              onTap: () =>
+                                  setState(() => _selectedColor = colorHex),
+                              child: Container(
+                                width: 48,
+                                height: 48,
                                 decoration: BoxDecoration(
                                   color: HexColor(colorHex),
                                   shape: BoxShape.circle,
                                   border: Border.all(
-                                    color: isSelected
-                                        ? Colors.white
-                                        : Colors.grey.shade800,
-                                    width: isSelected ? 3 : 1,
-                                  ),
-                                  boxShadow: [
-                                    if (isSelected)
-                                      BoxShadow(
-                                        color:
-                                            HexColor(colorHex).withOpacity(0.6),
-                                        blurRadius: 10,
-                                        spreadRadius: 2,
-                                      )
-                                  ],
+                                      color: isSelected
+                                          ? Colors.black
+                                          : Colors.grey,
+                                      width: isSelected ? 3 : 1),
                                 ),
                                 child: isSelected
                                     ? const Icon(Icons.check,
-                                        color: Colors.black54, size: 30)
+                                        color: Colors.black54)
                                     : null,
                               ),
                             );
                           },
                         ),
                       ),
-
                       const SizedBox(height: 40),
 
+                      // PRZYCISK ZAPISU (Główny)
                       SizedBox(
                         width: double.infinity,
                         height: 56,
                         child: FilledButton.icon(
                           onPressed: _isLoading ? null : _submit,
+                          icon: Icon(buttonIcon),
+                          label: Text(buttonText),
                           style: FilledButton.styleFrom(
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(16),
                             ),
                           ),
-                          icon: Icon(
-                              widget.boxToEdit == null ? Icons.nfc : Icons.save,
-                              size: 28),
-                          label: Text(
-                            widget.boxToEdit == null
-                                ? "Write to Tag"
-                                : "Update Database",
-                            style: const TextStyle(
-                                fontSize: 18, fontWeight: FontWeight.bold),
-                          ),
                         ),
                       ),
 
+                      // PRZYCISK USUWANIA (Tylko przy edycji, styl z InventoryPage)
+                      if (isEditing) ...[
+                        const SizedBox(height: 24),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 56,
+                          child: TextButton.icon(
+                            onPressed: _isLoading ? null : _confirmDelete,
+                            icon: const Icon(Icons.delete_outline,
+                                color: Colors.red),
+                            label: const Text(
+                              "Delete Item",
+                              style: TextStyle(
+                                  color: Colors.red,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold),
+                            ),
+                            style: TextButton.styleFrom(
+                              backgroundColor: Colors.red.withOpacity(0.1),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 20),
                     ],
                   ),
@@ -300,14 +344,63 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
               ),
             ),
 
-            // Loader overlay
-            if (_isLoading)
+            // --- Wizualizacja Czekania na NFC ---
+            if (_isLoading) _buildLoadingOverlay(context, useNfc),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLoadingOverlay(BuildContext context, bool isNfcWrite) {
+    return Container(
+      color: Colors.black.withOpacity(0.8),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            if (isNfcWrite) ...[
               Container(
-                color: Colors.black54,
-                child: const Center(
-                  child: CircularProgressIndicator(),
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.nfc,
+                  size: 80,
+                  color: Colors.white,
                 ),
               ),
+              const SizedBox(height: 24),
+              const Text(
+                'Hold phone near NFC tag...',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Writing data...',
+                style: TextStyle(color: Colors.white70),
+              ),
+            ] else ...[
+              const CircularProgressIndicator(color: Colors.white),
+              const SizedBox(height: 24),
+              const Text(
+                'Saving...',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+            const SizedBox(height: 40),
+            if (isNfcWrite)
+              const CircularProgressIndicator(color: Colors.white),
           ],
         ),
       ),

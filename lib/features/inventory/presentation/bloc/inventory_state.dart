@@ -27,16 +27,21 @@ class InventoryLoaded extends InventoryState {
   });
 
   @override
-  List<Object?> get props => [box, isLowStock, message];
+  List<Object?> get props => [
+        box,
+        isLowStock,
+        message,
+      ];
 }
 
 class InventoryError extends InventoryState {
   final String message;
+  final String? scannedCode;
 
-  const InventoryError(this.message);
+  const InventoryError(this.message, {this.scannedCode});
 
   @override
-  List<Object> get props => [message];
+  List<Object?> get props => [message, scannedCode];
 }
 
 // New state

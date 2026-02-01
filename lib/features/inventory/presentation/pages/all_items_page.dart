@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:grid_storage_nfc/features/inventory/presentation/bloc/inventory_bloc.dart';
 import 'package:grid_storage_nfc/features/inventory/presentation/pages/setup_tag_screen.dart';
-// Upewnij się, że masz ten pakiet (lub użyj metody _hexToColor, którą dodałem niżej)
-// import 'package:hexcolor/hexcolor.dart';
 
 class AllItemsPage extends StatefulWidget {
   const AllItemsPage({super.key});
@@ -34,7 +32,7 @@ class _AllItemsPageState extends State<AllItemsPage> {
     );
   }
 
-  // Helper do kolorów (zastępuje paczkę hexcolor, jeśli jej nie ma)
+  // Helper do kolorów
   Color _hexToColor(String hex) {
     hex = hex.replaceAll('#', '');
     if (hex.length == 6) hex = 'FF$hex';
@@ -129,18 +127,19 @@ class _AllItemsPageState extends State<AllItemsPage> {
                           child: InkWell(
                             borderRadius: BorderRadius.circular(12),
                             onTap: () async {
-                              // Nawigacja do edycji (lub szczegółów) po kliknięciu w kartę
+                              // NAPRAWA 1: Zapisujemy bloc przed nawigacją
+                              final inventoryBloc =
+                                  context.read<InventoryBloc>();
+
                               await Navigator.of(context).push(
                                 MaterialPageRoute(
                                   builder: (_) =>
                                       SetupTagScreen(boxToEdit: box),
                                 ),
                               );
-                              if (mounted) {
-                                context
-                                    .read<InventoryBloc>()
-                                    .add(const LoadAllItems());
-                              }
+
+                              // Używamy zmiennej inventoryBloc zamiast context.read
+                              inventoryBloc.add(const LoadAllItems());
                             },
                             child: Padding(
                               padding: const EdgeInsets.symmetric(
@@ -210,17 +209,19 @@ class _AllItemsPageState extends State<AllItemsPage> {
                                   IconButton(
                                     icon: const Icon(Icons.edit_outlined),
                                     onPressed: () async {
+                                      // NAPRAWA 2: Zapisujemy bloc przed nawigacją
+                                      final inventoryBloc =
+                                          context.read<InventoryBloc>();
+
                                       await Navigator.of(context).push(
                                         MaterialPageRoute(
                                           builder: (_) =>
                                               SetupTagScreen(boxToEdit: box),
                                         ),
                                       );
-                                      if (mounted) {
-                                        context
-                                            .read<InventoryBloc>()
-                                            .add(const LoadAllItems());
-                                      }
+
+                                      // Używamy zmiennej inventoryBloc
+                                      inventoryBloc.add(const LoadAllItems());
                                     },
                                   ),
                                 ],
@@ -257,12 +258,15 @@ class _AllItemsPageState extends State<AllItemsPage> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
+          // NAPRAWA 3: Zapisujemy bloc przed nawigacją
+          final inventoryBloc = context.read<InventoryBloc>();
+
           await Navigator.of(context).push(
             MaterialPageRoute(builder: (_) => const SetupTagScreen()),
           );
-          if (mounted) {
-            context.read<InventoryBloc>().add(const LoadAllItems());
-          }
+
+          // Używamy zmiennej inventoryBloc
+          inventoryBloc.add(const LoadAllItems());
         },
         child: const Icon(Icons.add),
       ),

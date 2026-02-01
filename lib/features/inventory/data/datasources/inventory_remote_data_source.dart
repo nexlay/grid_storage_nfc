@@ -35,23 +35,28 @@ class InventoryRemoteDataSourceImpl implements InventoryRemoteDataSource {
 
   @override
   Future<String> createBox(StorageBox box) async {
+    print(
+        "📤 Wysyłam box: ${box.toJson()}"); // Debug: zobaczysz czy barcode leci
+
     final response = await client
         .post(
           Uri.parse(baseUrl),
           headers: {
             'Content-Type': 'application/json',
-            'Prefer': 'return=representation',
+            'Prefer':
+                'return=representation', // Ważne dla PostgREST, żeby zwrócił ID
           },
           body: json.encode(box.toJson()),
         )
-        .timeout(
-            const Duration(seconds: 3)); // Też dodajemy timeout przy zapisie
+        .timeout(const Duration(seconds: 3));
 
     if (response.statusCode == 201) {
       final List<dynamic> result = json.decode(response.body);
       return result.first['id'].toString();
     } else {
-      throw Exception('Failed to create remote box');
+      // --- ZMIANA: WYPISZ BŁĄD W KONSOLI ---
+      print('❌ Błąd serwera (${response.statusCode}): ${response.body}');
+      throw Exception('Failed to create remote box: ${response.statusCode}');
     }
   }
 

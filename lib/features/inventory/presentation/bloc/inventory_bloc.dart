@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
-// Upewnij się, że import serwisu powiadomień jest poprawny
 import 'package:grid_storage_nfc/core/notifications/notification_service.dart';
 import 'package:grid_storage_nfc/features/inventory/domain/entities/storage_box.dart';
 import 'package:grid_storage_nfc/features/inventory/domain/usecases/get_inventory_list.dart';
@@ -39,6 +38,58 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
     on<DeleteBoxRequested>(_onDeleteBoxRequested);
     on<LoadAllItems>(_onLoadAllItems);
     on<ResetInventory>(_onResetInventory);
+    on<ProcessScannedCode>(_onProcessScannedCode);
+  }
+
+  Future<void> _onProcessScannedCode(
+    ProcessScannedCode event,
+    Emitter<InventoryState> emit,
+  ) async {
+    emit(const InventoryLoading());
+    try {
+      String cleanCode = event.rawCode;
+
+      // Logika JSON (bez zmian)
+      if (cleanCode.trim().startsWith('{')) {
+        try {
+          final Map<String, dynamic> data = jsonDecode(cleanCode);
+          if (data.containsKey('id')) {
+            cleanCode = data['id'].toString();
+          }
+        } catch (e) {}
+      }
+
+      print("🔍 SKANOWANIE: Szukam kodu '$cleanCode'...");
+
+      final allItems = await getInventoryList();
+
+      // --- DEBUGOWANIE ---
+      // To pokaże w konsoli co masz w bazie
+      print("📦 ZAWARTOŚĆ BAZY (${allItems.length} elementów):");
+      for (var b in allItems) {
+        print(
+            "   - Item: '${b.itemName}', ID: ${b.id}, Barcode: '${b.barcode}'");
+      }
+      // -------------------
+
+      try {
+        final box = allItems.firstWhere((b) {
+          return b.id.toString() == cleanCode || b.barcode == cleanCode;
+        });
+
+        print("✅ ZNALEZIONO: ${box.itemName}");
+        final isLowStock = box.quantity <= box.threshold;
+        emit(InventoryLoaded(box: box, isLowStock: isLowStock));
+      } catch (_) {
+        print("❌ NIE ZNALEZIONO pasującego elementu.");
+        emit(InventoryError(
+          'Item not found for code: $cleanCode',
+          scannedCode: cleanCode,
+        ));
+      }
+    } catch (e) {
+      emit(InventoryError('Error processing code: ${e.toString()}'));
+    }
   }
 
   Future<void> _onResetInventory(
@@ -67,6 +118,7 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
     try {
       StorageBox boxToSave;
       if (event.id != null) {
+        // --- EDYCJA ---
         final existingBox = await getInventoryItem(event.id!);
 
         if (existingBox == null) {
@@ -81,8 +133,11 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
           hexColor: event.color,
           lastUsed: DateTime.now(),
           isSynced: false,
+          // Przy edycji zazwyczaj nie nadpisujemy barcode, chyba że dodasz taką opcję w UI
+          // barcode: event.barcode ?? existingBox.barcode,
         );
       } else {
+        // --- NOWY PRZEDMIOT ---
         boxToSave = StorageBox()
           ..itemName = event.name
           ..quantity = event.quantity
@@ -90,13 +145,16 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
           ..hexColor = event.color
           ..modelPath = 'assets/models/box.glb'
           ..lastUsed = DateTime.now()
-          ..isSynced = false;
+          ..isSynced = false
+          ..barcode = event.barcode; // <--- WAŻNE: Zapisujemy kod kreskowy/QR
       }
 
+      // 1. Zapis do bazy
       final id = await saveInventoryItem(boxToSave);
       boxToSave = boxToSave.copyWith(id: id);
 
-      if (event.id == null) {
+      // 2. Zapis na tag NFC (tylko jeśli wymagane i to nowy item)
+      if (event.id == null && event.writeToNfc) {
         await _nfcService.writeTag(id.toString());
       }
 
@@ -169,9 +227,6 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
       await saveInventoryItem(updatedBox);
 
       // 2. --- LOGIKA POWIADOMIENIA ---
-      // Sprawdzamy:
-      // a) Czy ilość jest mniejsza lub równa progowi (threshold)
-      // b) Czy ilość ZMALAŁA (updatedBox.quantity < currentBox.quantity) - żeby nie krzyczeć przy dodawaniu
       if (updatedBox.quantity <= updatedBox.threshold &&
           updatedBox.quantity < currentBox.quantity) {
         await notificationService.showLowStockNotification(

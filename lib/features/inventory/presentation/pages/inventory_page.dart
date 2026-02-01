@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:grid_storage_nfc/features/inventory/domain/entities/storage_box.dart';
 import 'package:grid_storage_nfc/features/inventory/presentation/bloc/inventory_bloc.dart';
+import 'package:grid_storage_nfc/features/inventory/presentation/pages/barcode_scanner_page.dart';
 import 'package:grid_storage_nfc/features/inventory/presentation/pages/setup_tag_screen.dart';
-// WAŻNE: Import widgetu 3D
 import 'package:grid_storage_nfc/features/inventory/presentation/widgets/box_3d_viewer.dart';
 import 'package:intl/intl.dart';
 
@@ -13,17 +13,46 @@ class InventoryPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // Główny przycisk skanowania (FAB)
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          context.read<InventoryBloc>().add(const ScanTagRequested());
-        },
-        icon: const Icon(Icons.nfc),
-        label: const Text('Scan Tag'),
-        elevation: 4,
-        backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-        foregroundColor: Theme.of(context).colorScheme.onPrimaryContainer,
+      // PRZYCISKI SKANOWANIA (QR + NFC)
+      floatingActionButton: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // 1. Przycisk QR / Barcode
+          FloatingActionButton(
+            heroTag: 'qr_scan', // Unikalny tag dla animacji
+            onPressed: () async {
+              // Otwieramy skaner i czekamy na wynik
+              final String? code = await Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const BarcodeScannerPage()),
+              );
+
+              // Jeśli coś zeskanowano, wysyłamy do Bloca
+              if (code != null && context.mounted) {
+                context.read<InventoryBloc>().add(ProcessScannedCode(code));
+              }
+            },
+            backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
+            child: const Icon(Icons.qr_code_scanner),
+          ),
+
+          const SizedBox(width: 16), // Odstęp
+
+          // 2. Główny przycisk NFC
+          FloatingActionButton.extended(
+            heroTag: 'nfc_scan', // Unikalny tag
+            onPressed: () {
+              context.read<InventoryBloc>().add(const ScanTagRequested());
+            },
+            icon: const Icon(Icons.nfc),
+            label: const Text('Scan Tag'),
+            elevation: 4,
+            backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+            foregroundColor: Theme.of(context).colorScheme.onPrimaryContainer,
+          ),
+        ],
       ),
+
       body: BlocBuilder<InventoryBloc, InventoryState>(
         buildWhen: (previous, current) {
           // Przebuduj tylko jeśli zmieniło się ID lub ilość (optymalizacja)
@@ -54,12 +83,39 @@ class InventoryPage extends StatelessWidget {
                   const SizedBox(height: 16),
                   Text(state.message, style: const TextStyle(fontSize: 16)),
                   const SizedBox(height: 16),
+
+                  // Przycisk powrotu
                   FilledButton.tonal(
                     onPressed: () {
                       context.read<InventoryBloc>().add(const ResetInventory());
                     },
                     child: const Text('Go back'),
-                  )
+                  ),
+
+                  // BONUS: Jeśli przedmiot nie istnieje, pozwól go dodać!
+                  if (state.message.contains('not found')) ...[
+                    const SizedBox(height: 12),
+                    FilledButton(
+                      onPressed: () {
+                        // Otwórz formularz dodawania
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => SetupTagScreen(
+                              isNfcMode: false, // Wyłączamy NFC
+                              // --- KLUCZOWA POPRAWKA PONIŻEJ ---
+                              // Przekazujemy zeskanowany kod z błędu do formularza
+                              scannedCode: state.scannedCode,
+                            ),
+                          ),
+                        );
+                        // Reset stanu po wyjściu z formularza
+                        context
+                            .read<InventoryBloc>()
+                            .add(const ResetInventory());
+                      },
+                      child: const Text('Create New Item'),
+                    ),
+                  ]
                 ],
               ),
             );
@@ -100,7 +156,7 @@ class InventoryPage extends StatelessWidget {
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
-                    Icons.nfc,
+                    Icons.qr_code_scanner, // Zmiana ikony na bardziej ogólną
                     size: 80,
                     color: Theme.of(context).disabledColor,
                   ),
@@ -114,7 +170,7 @@ class InventoryPage extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Tap the button below to start',
+                  'Scan NFC tag or Barcode/QR',
                   style: TextStyle(color: Colors.grey.shade600),
                 ),
               ],
