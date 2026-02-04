@@ -8,6 +8,9 @@ abstract class InventoryLocalDataSource {
   Future<int> saveBox(StorageBox box);
   Future<void> deleteBox(String id);
   Future<StorageBox?> getLastUsedBox();
+
+  // <--- NOWA METODA: Dodana do kontraktu (interfejsu)
+  Future<void> clearAll();
 }
 
 class InventoryLocalDataSourceImpl implements InventoryLocalDataSource {
@@ -34,7 +37,6 @@ class InventoryLocalDataSourceImpl implements InventoryLocalDataSource {
   Future<List<StorageBox>> getAllBoxes() async {
     try {
       final result = await isar.storageBoxs.where().findAll();
-
       return result;
     } catch (e) {
       rethrow;
@@ -43,6 +45,8 @@ class InventoryLocalDataSourceImpl implements InventoryLocalDataSource {
 
   @override
   Future<StorageBox?> getBox(String id) async {
+    // Uwaga: zakładamy, że id to String parsujący się na int (dla Isar)
+    // Jeśli id jest GUID-em, logika musiałaby być inna, ale trzymam się Twojego kodu.
     return await isar.storageBoxs.get(int.parse(id));
   }
 
@@ -57,6 +61,14 @@ class InventoryLocalDataSourceImpl implements InventoryLocalDataSource {
   Future<void> deleteBox(String id) async {
     await isar.writeTxn(() async {
       await isar.storageBoxs.delete(int.parse(id));
+    });
+  }
+
+  // <--- NOWA METODA: Implementacja czyszczenia bazy
+  @override
+  Future<void> clearAll() async {
+    await isar.writeTxn(() async {
+      await isar.storageBoxs.clear();
     });
   }
 }

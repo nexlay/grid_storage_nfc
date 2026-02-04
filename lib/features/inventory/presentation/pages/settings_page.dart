@@ -1,17 +1,124 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:grid_storage_nfc/core/theme/theme_cubit.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:grid_storage_nfc/core/server_status/server_status_cubit.dart';
 import 'package:grid_storage_nfc/core/local_storage/local_storage_cubit.dart';
+import 'package:grid_storage_nfc/core/services/auth_service.dart';
+import 'package:grid_storage_nfc/features/inventory/data/datasources/inventory_local_data_source.dart';
+import 'package:grid_storage_nfc/features/inventory/presentation/bloc/inventory_bloc.dart';
 import 'package:grid_storage_nfc/features/inventory/presentation/widgets/theme_selector_card.dart';
 import 'package:grid_storage_nfc/features/inventory/presentation/widgets/about_card.dart';
+import 'package:grid_storage_nfc/injection_container.dart' as di;
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
 
+  // --- LOGIKA WYLOGOWANIA ---
+  Future<void> _handleLogout(BuildContext context) async {
+    final shouldLogout = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Log Out'),
+        content: const Text(
+            'Are you sure you want to log out?\nThis will clear local data.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Log Out'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldLogout == true && context.mounted) {
+      try {
+        await di.sl<InventoryLocalDataSource>().clearAll();
+      } catch (e) {
+        debugPrint("Błąd czyszczenia bazy: $e");
+      }
+
+      if (context.mounted) {
+        context.read<InventoryBloc>().add(const ResetInventory());
+        await AuthService().signOut();
+      }
+    }
+  }
+
+  // --- LOGIKA USUWANIA KONTA ---
+  Future<void> _handleDeleteAccount(BuildContext context) async {
+    final shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('DELETE ACCOUNT'),
+        content: const Text(
+            'Warning: This action cannot be undone.\n\n'
+            'We will ask you to confirm your Google Account one last time before deletion.',
+            style: TextStyle(color: Colors.red)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('CONTINUE'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldDelete == true && context.mounted) {
+      // ZAPAMIĘTUJEMY NAWIGATOR, aby móc zamknąć loader po zniszczeniu strony
+      final navigator = Navigator.of(context);
+
+      try {
+        // Pokazujemy loader
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) => const Center(child: CircularProgressIndicator()),
+        );
+
+        // 1. Czyścimy lokalnie
+        await di.sl<InventoryLocalDataSource>().clearAll();
+        if (context.mounted) {
+          context.read<InventoryBloc>().add(const ResetInventory());
+        }
+
+        // 2. Usuwamy konto i zrywamy sesję Google (disconnect)
+        await AuthService().deleteUserAccount();
+
+        // 3. ZAMYKAMY LOADER (używając zapamiętanego navigatora)
+        navigator.pop();
+      } catch (e) {
+        // Zamykamy loader w razie błędu
+        navigator.pop();
+
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text("Account deletion failed: ${e.toString()}"),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        }
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final themeMode = context.watch<ThemeCubit>().state;
+    final user = FirebaseAuth.instance.currentUser;
+    final String displayName = user?.displayName ?? 'User';
+    final String email = user?.email ?? '';
+    final String? photoUrl = user?.photoURL;
 
     return Scaffold(
       body: CustomScrollView(
@@ -21,156 +128,94 @@ class SettingsPage extends StatelessWidget {
           ),
           SliverList(
             delegate: SliverChildListDelegate([
-              // --- DATA & SYNC (ZGRUPOWANE) ---
               _buildSectionHeader(context, 'Data & Synchronization'),
-
               Card(
                 margin: const EdgeInsets.symmetric(horizontal: 16),
-                elevation: 0, // Styl "Flat"
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  side: BorderSide(
-                    color: Theme.of(context).colorScheme.outlineVariant,
-                  ),
-                ),
                 child: Column(
                   children: [
-                    // 1. LOCAL STORAGE (ISAR)
                     BlocBuilder<LocalStorageCubit, LocalStorageState>(
                       builder: (context, state) {
-                        int total = 0;
-                        int pending = 0;
-                        String subtitle = 'Checking database...';
-                        IconData icon = Icons.storage_rounded;
-                        Color iconColor = Theme.of(context).colorScheme.primary;
-
-                        if (state is LocalStorageLoaded) {
-                          total = state.totalItems;
-                          pending = state.unsyncedItems;
-
-                          if (pending > 0) {
-                            subtitle =
-                                '$total items stored\n($pending pending sync)';
-                            iconColor = Colors.orange;
-                          } else {
-                            subtitle = '$total items stored (All synced)';
-                            iconColor = Colors.blue;
-                          }
-                        }
-
+                        int total =
+                            state is LocalStorageLoaded ? state.totalItems : 0;
                         return ListTile(
-                          leading: Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: iconColor.withOpacity(0.1),
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(icon, color: iconColor, size: 24),
-                          ),
+                          leading: const Icon(Icons.storage_rounded,
+                              color: Colors.blue),
                           title: const Text('Local Database'),
-                          subtitle: Text(subtitle),
+                          subtitle: Text('$total items stored'),
                           trailing: IconButton(
                             icon: const Icon(Icons.refresh),
-                            onPressed: () {
-                              context.read<LocalStorageCubit>().loadStats();
-                            },
+                            onPressed: () =>
+                                context.read<LocalStorageCubit>().loadStats(),
                           ),
                         );
                       },
                     ),
-
-                    // Linia oddzielająca
-                    Divider(
-                      height: 1,
-                      indent: 56, // Wcięcie, żeby nie przecinało ikony
-                      endIndent: 16,
-                      color: Theme.of(context)
-                          .colorScheme
-                          .outlineVariant
-                          .withOpacity(0.5),
-                    ),
-
-                    // 2. REMOTE STORAGE (DYNAMIC: FIREBASE / QNAP)
+                    const Divider(height: 1),
                     BlocBuilder<ServerStatusCubit, ServerStatusState>(
                       builder: (context, state) {
-                        // Pobieramy nazwę serwisu z Cubita (zdefiniowaną w injection_container)
-                        final cubit = context.read<ServerStatusCubit>();
                         final serviceName =
-                            cubit.serviceName; // "Firebase" lub "QNAP"
-
-                        bool isSwitchOn = false;
-                        String subtitle = "Disabled";
-                        Color iconColor = Colors.grey;
-                        IconData icon = Icons.cloud_off_rounded;
-
-                        if (state is ServerStatusDisabled) {
-                          isSwitchOn = false;
-                          subtitle = "$serviceName Sync is off";
-                          iconColor = Colors.grey;
-                        } else if (state is ServerStatusChecking) {
-                          isSwitchOn = true;
-                          subtitle = "Connecting to $serviceName...";
-                          iconColor = Colors.orange;
-                          icon = Icons.sync;
-                        } else if (state is ServerStatusOnline) {
-                          isSwitchOn = true;
-                          subtitle = "Connected";
-                          iconColor = Colors.green;
-
-                          // Dobieramy ikonę w zależności od serwisu
-                          if (serviceName == 'Firebase') {
-                            icon = Icons.local_fire_department_rounded;
-                          } else {
-                            icon = Icons.dns_rounded; // Serwer/QNAP
-                          }
-                        } else if (state is ServerStatusOffline) {
-                          isSwitchOn = true;
-                          subtitle = "Offline (Check Internet/VPN)";
-                          iconColor = Colors.red;
-                          icon = Icons.signal_wifi_off;
-                        } else {
-                          isSwitchOn = true;
-                          subtitle = "Initializing...";
-                        }
-
+                            context.read<ServerStatusCubit>().serviceName;
+                        bool isSwitchOn = state is! ServerStatusDisabled;
                         return SwitchListTile(
-                          secondary: Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: iconColor.withOpacity(0.1),
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(icon, color: iconColor, size: 24),
-                          ),
-                          // Dynamiczny tytuł: "Firebase Sync" lub "QNAP Sync"
+                          secondary:
+                              const Icon(Icons.cloud_sync, color: Colors.green),
                           title: Text("$serviceName Sync"),
-                          subtitle: Text(subtitle,
-                              style: TextStyle(color: iconColor)),
                           value: isSwitchOn,
-                          onChanged: (bool value) {
-                            context.read<ServerStatusCubit>().toggleSync(value);
-                          },
+                          onChanged: (val) =>
+                              context.read<ServerStatusCubit>().toggleSync(val),
                         );
                       },
                     ),
                   ],
                 ),
               ),
-
               const SizedBox(height: 8),
-              // --- APPEARANCE ---
-
               _buildSectionHeader(context, 'Appearance'),
-
               const ThemeSelectorCard(),
-
               const SizedBox(height: 8),
-
-              // --- ABOUT ---
               _buildSectionHeader(context, 'About'),
-
               const AboutCard(),
-
+              const SizedBox(height: 8),
+              _buildSectionHeader(context, 'Account'),
+              Card(
+                margin: const EdgeInsets.symmetric(horizontal: 16),
+                child: Column(
+                  children: [
+                    ListTile(
+                      leading: CircleAvatar(
+                        backgroundImage:
+                            photoUrl != null ? NetworkImage(photoUrl) : null,
+                        child: photoUrl == null
+                            ? Text(
+                                displayName.isNotEmpty ? displayName[0] : 'U')
+                            : null,
+                      ),
+                      title: Text(displayName,
+                          style: const TextStyle(fontWeight: FontWeight.bold)),
+                      subtitle: Text(email),
+                    ),
+                    const Divider(height: 1),
+                    ListTile(
+                      leading: const Icon(Icons.logout, color: Colors.orange),
+                      title: const Text('Log Out',
+                          style: TextStyle(
+                              color: Colors.orange,
+                              fontWeight: FontWeight.bold)),
+                      onTap: () => _handleLogout(context),
+                    ),
+                    const Divider(height: 1),
+                    ListTile(
+                      leading:
+                          const Icon(Icons.delete_forever, color: Colors.red),
+                      title: const Text('Delete Account',
+                          style: TextStyle(
+                              color: Colors.red, fontWeight: FontWeight.bold)),
+                      subtitle: const Text("Permanently delete data & user"),
+                      onTap: () => _handleDeleteAccount(context),
+                    ),
+                  ],
+                ),
+              ),
               const SizedBox(height: 50),
             ]),
           ),
@@ -190,16 +235,5 @@ class SettingsPage extends StatelessWidget {
             ),
       ),
     );
-  }
-
-  String _getThemeName(ThemeMode mode) {
-    switch (mode) {
-      case ThemeMode.system:
-        return 'Follow System';
-      case ThemeMode.light:
-        return 'Light Mode';
-      case ThemeMode.dark:
-        return 'Dark Mode';
-    }
   }
 }

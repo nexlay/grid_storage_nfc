@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_storage/firebase_storage.dart'; // --- NOWE (Storage)
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:get_it/get_it.dart';
 import 'package:http/http.dart' as http;
 import 'package:internet_connection_checker_plus/internet_connection_checker_plus.dart';
@@ -52,7 +52,11 @@ Future<void> init() async {
 
   print('🚀 Uruchamianie aplikacji. Pakiet: $packageName');
 
-  if (packageName.endsWith('.home')) {
+  // --- POPRAWKA: Rozpoznawanie trybu HOME (również dla wersji produkcyjnej) ---
+  final bool isHomeMode = packageName.endsWith('.home') ||
+      packageName == 'com.pryhodskyimykola.gridstorage';
+
+  if (isHomeMode) {
     // ----------------------------------------------------
     // ŚCIEŻKA A: HOME (FIREBASE)
     // ----------------------------------------------------
@@ -63,13 +67,13 @@ Future<void> init() async {
 
     // Rejestracja usług Firebase
     sl.registerLazySingleton(() => FirebaseFirestore.instance);
-    sl.registerLazySingleton(() => FirebaseStorage.instance); // <--- DODANO
+    sl.registerLazySingleton(() => FirebaseStorage.instance);
 
     // Rejestracja DataSource dla Firebase
     sl.registerLazySingleton<InventoryRemoteDataSource>(
       () => FirebaseInventoryRemoteDataSource(
         firestore: sl(),
-        storage: sl(), // <--- DODANO (Wstrzyknięcie Storage)
+        storage: sl(),
       ),
     );
   } else {
@@ -96,7 +100,7 @@ Future<void> init() async {
 
   // ServerStatusCubit
   sl.registerFactory(() {
-    if (packageName.endsWith('.home')) {
+    if (isHomeMode) {
       // === KONFIGURACJA DLA FIREBASE ===
       return ServerStatusCubit(
         client: sl(),
