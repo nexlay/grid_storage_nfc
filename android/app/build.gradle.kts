@@ -3,12 +3,27 @@ plugins {
     id("kotlin-android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+    id("com.google.gms.google-services")
 }
 
 android {
     namespace = "com.example.grid_storage_nfc"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
+    flavorDimensions += "env"
+
+    productFlavors {
+        create("office") {
+            dimension = "env"
+            applicationIdSuffix = ".office"
+            resValue("string", "app_name", "Grid Storage (Office)")
+        }
+        create("home") {
+            dimension = "env"
+            applicationIdSuffix = ".home"
+            resValue("string", "app_name", "Grid Storage (Home)")
+        }
+    }
 
     compileOptions {
         isCoreLibraryDesugaringEnabled = true
@@ -46,4 +61,5 @@ flutter {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+   
 }

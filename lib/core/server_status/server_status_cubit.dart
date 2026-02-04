@@ -2,25 +2,22 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:grid_storage_nfc/features/inventory/domain/usecases/sync_pending_items.dart';
+import 'package:internet_connection_checker_plus/internet_connection_checker_plus.dart'; // Dodaj import!
 
 // ==========================================
-// CZĘŚĆ 1: DEFINICJE STANÓW (Tego brakowało)
+// CZĘŚĆ 1: DEFINICJE STANÓW
 // ==========================================
 
 abstract class ServerStatusState {}
 
 class ServerStatusInitial extends ServerStatusState {}
 
-// Stan: Użytkownik ręcznie wyłączył synchronizację
 class ServerStatusDisabled extends ServerStatusState {}
 
-// Stan: Trwa sprawdzanie połączenia (kręciołek)
 class ServerStatusChecking extends ServerStatusState {}
 
-// Stan: Połączono z QNAP (Zielona chmurka)
 class ServerStatusOnline extends ServerStatusState {}
 
-// Stan: Błąd połączenia (Czerwona chmurka)
 class ServerStatusOffline extends ServerStatusState {}
 
 // ==========================================
@@ -29,20 +26,25 @@ class ServerStatusOffline extends ServerStatusState {}
 
 class ServerStatusCubit extends Cubit<ServerStatusState> {
   final http.Client client;
-  final SyncPendingItems syncPendingItems; // Nasz UseCase do synchronizacji
+  final SyncPendingItems syncPendingItems;
+  final String serviceName; // np. "QNAP" lub "Firebase"
+  final String? checkUrl; // np. "http://192..." dla QNAP, null dla Firebase
 
-  static const String _url = 'http://192.168.1.40:3000/storage_boxes';
   static const String _prefKey = 'sync_enabled';
 
-  ServerStatusCubit({required this.client, required this.syncPendingItems})
-      : super(ServerStatusInitial()) {
+  ServerStatusCubit({
+    required this.client,
+    required this.syncPendingItems,
+    required this.serviceName,
+    this.checkUrl,
+  }) : super(ServerStatusInitial()) {
     _init();
   }
 
   // 1. Start: Sprawdź co użytkownik ustawił ostatnio
   Future<void> _init() async {
     final prefs = await SharedPreferences.getInstance();
-    final isEnabled = prefs.getBool(_prefKey) ?? true; // Domyślnie włączone
+    final isEnabled = prefs.getBool(_prefKey) ?? true;
 
     if (isEnabled) {
       checkConnection();
@@ -51,31 +53,50 @@ class ServerStatusCubit extends Cubit<ServerStatusState> {
     }
   }
 
-  // 2. Przełącznik (To podepniemy pod guzik w ustawieniach)
+  // 2. Przełącznik w ustawieniach
   Future<void> toggleSync(bool enable) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_prefKey, enable);
 
     if (enable) {
-      checkConnection(); // Jak włączył -> sprawdź połączenie
+      checkConnection();
     } else {
-      emit(ServerStatusDisabled()); // Jak wyłączył -> ustaw stan disabled
+      emit(ServerStatusDisabled());
     }
   }
 
-  // 3. Sprawdzanie połączenia (Ping) + Synchronizacja
+  // 3. Sprawdzanie połączenia
   Future<void> checkConnection() async {
     emit(ServerStatusChecking());
 
     try {
-      final response = await client.get(Uri.parse(_url)).timeout(
-            const Duration(seconds: 2),
-          );
+      bool isConnected = false;
 
-      if (response.statusCode == 200) {
+      if (checkUrl != null) {
+        // --- TRYB QNAP (Pingujemy konkretny serwer) ---
+        try {
+          final response = await client.get(Uri.parse(checkUrl!)).timeout(
+                const Duration(seconds: 2),
+              );
+          if (response.statusCode == 200) {
+            isConnected = true;
+          }
+        } catch (e) {
+          isConnected = false;
+        }
+      } else {
+        // --- TRYB FIREBASE (Sprawdzamy tylko czy jest internet) ---
+        // Firebase sam dba o resztę, ważne żeby telefon miał sieć
+        isConnected = await InternetConnection().hasInternetAccess;
+      }
+
+      if (isConnected) {
         // Połączenie jest OK.
-        // Teraz uruchamiamy synchronizację zaległych danych (jeśli są)
-        await syncPendingItems();
+        // Teraz uruchamiamy synchronizację zaległych itemów w tle
+        // (nie czekamy aż się skończy, żeby nie blokować UI)
+        syncPendingItems().then((_) {
+          print('🔄 Auto-sync ($serviceName) triggered from StatusCubit');
+        });
 
         emit(ServerStatusOnline());
       } else {

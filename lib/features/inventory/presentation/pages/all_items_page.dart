@@ -148,7 +148,7 @@ class _AllItemsPageState extends State<AllItemsPage> {
                                 children: [
                                   // Avatar
                                   CircleAvatar(
-                                    backgroundColor: _hexToColor(box.hexColor!),
+                                    backgroundColor: _hexToColor(box.hexColor),
                                     child: Text(
                                       box.itemName.isNotEmpty
                                           ? box.itemName[0].toUpperCase()

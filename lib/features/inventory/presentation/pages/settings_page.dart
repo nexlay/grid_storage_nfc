@@ -90,9 +90,14 @@ class SettingsPage extends StatelessWidget {
                           .withOpacity(0.5),
                     ),
 
-                    // 2. REMOTE STORAGE (QNAP)
+                    // 2. REMOTE STORAGE (DYNAMIC: FIREBASE / QNAP)
                     BlocBuilder<ServerStatusCubit, ServerStatusState>(
                       builder: (context, state) {
+                        // Pobieramy nazwę serwisu z Cubita (zdefiniowaną w injection_container)
+                        final cubit = context.read<ServerStatusCubit>();
+                        final serviceName =
+                            cubit.serviceName; // "Firebase" lub "QNAP"
+
                         bool isSwitchOn = false;
                         String subtitle = "Disabled";
                         Color iconColor = Colors.grey;
@@ -100,23 +105,29 @@ class SettingsPage extends StatelessWidget {
 
                         if (state is ServerStatusDisabled) {
                           isSwitchOn = false;
-                          subtitle = "Sync is off";
+                          subtitle = "$serviceName Sync is off";
                           iconColor = Colors.grey;
                         } else if (state is ServerStatusChecking) {
                           isSwitchOn = true;
-                          subtitle = "Connecting...";
+                          subtitle = "Connecting to $serviceName...";
                           iconColor = Colors.orange;
                           icon = Icons.sync;
                         } else if (state is ServerStatusOnline) {
                           isSwitchOn = true;
-                          subtitle = "Connected (192.168.1.40)";
+                          subtitle = "Connected";
                           iconColor = Colors.green;
-                          icon = Icons.cloud_done_rounded;
+
+                          // Dobieramy ikonę w zależności od serwisu
+                          if (serviceName == 'Firebase') {
+                            icon = Icons.local_fire_department_rounded;
+                          } else {
+                            icon = Icons.dns_rounded; // Serwer/QNAP
+                          }
                         } else if (state is ServerStatusOffline) {
                           isSwitchOn = true;
-                          subtitle = "Offline (Check VPN)";
+                          subtitle = "Offline (Check Internet/VPN)";
                           iconColor = Colors.red;
-                          icon = Icons.cloud_off_rounded;
+                          icon = Icons.signal_wifi_off;
                         } else {
                           isSwitchOn = true;
                           subtitle = "Initializing...";
@@ -131,7 +142,8 @@ class SettingsPage extends StatelessWidget {
                             ),
                             child: Icon(icon, color: iconColor, size: 24),
                           ),
-                          title: const Text("QNAP Sync"),
+                          // Dynamiczny tytuł: "Firebase Sync" lub "QNAP Sync"
+                          title: Text("$serviceName Sync"),
                           subtitle: Text(subtitle,
                               style: TextStyle(color: iconColor)),
                           value: isSwitchOn,

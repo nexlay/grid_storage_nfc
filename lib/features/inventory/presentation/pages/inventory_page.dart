@@ -6,7 +6,6 @@ import 'package:grid_storage_nfc/features/inventory/presentation/bloc/inventory_
 import 'package:grid_storage_nfc/features/inventory/presentation/pages/barcode_scanner_page.dart';
 import 'package:grid_storage_nfc/features/inventory/presentation/pages/setup_tag_screen.dart';
 // Box3DViewer nie jest już konieczny w głównej karcie, ale zostawiam import, gdybyś chciał go użyć gdzieś indziej
-import 'package:grid_storage_nfc/features/inventory/presentation/widgets/box_3d_viewer.dart';
 import 'package:intl/intl.dart';
 
 class InventoryPage extends StatelessWidget {
