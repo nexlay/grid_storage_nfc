@@ -115,8 +115,7 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
               color: _selectedColor,
               writeToNfc: widget.isNfcMode,
               barcode: widget.boxToEdit?.barcode ?? widget.scannedCode,
-              // Upewnij się, że dodałeś pole imagePath do klasy WriteTagRequested w inventory_event.dart
-              // imagePath: _imagePath,
+              imagePath: _imagePath,
             ),
           );
     }

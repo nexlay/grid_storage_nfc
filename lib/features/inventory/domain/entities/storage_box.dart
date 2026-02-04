@@ -1,4 +1,5 @@
 import 'package:isar/isar.dart';
+
 part 'storage_box.g.dart';
 
 @collection
@@ -33,6 +34,8 @@ class StorageBox {
       'model_path': modelPath,
       'last_used': lastUsed.toIso8601String(),
       'barcode': barcode,
+      // 👇👇👇 DODANO ZAPIS ZDJĘCIA 👇👇👇
+      'image_path': imagePath,
     };
   }
 
@@ -47,10 +50,12 @@ class StorageBox {
       ..modelPath = json['model_path'] ?? ''
       ..lastUsed = DateTime.tryParse(json['last_used'] ?? '') ?? DateTime.now()
       ..isSynced = true // Skoro przyszło z serwera, to jest zsynchronizowane
-      ..barcode = json['barcode'];
+      ..barcode = json['barcode']
+      // 👇👇👇 DODANO ODCZYT ZDJĘCIA 👇👇👇
+      ..imagePath = json['image_path'];
   }
 
-  // Twoja metoda copyWith (pozostaje bez zmian, skróciłem dla czytelności tutaj)
+  // Twoja metoda copyWith
   StorageBox copyWith({
     Id? id,
     String? itemName,
