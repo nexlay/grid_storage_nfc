@@ -36,14 +36,21 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
   String? _imagePath; // --- Zmienna na ścieżkę do zdjęcia
   bool _isLoading = false;
 
+  // Rozbudowana paleta kolorów
   final List<String> _colors = [
     '#FFFFFF', // Biały
+    '#000000', // Czarny (NOWOŚĆ)
+    '#9E9E9E', // Szary (NOWOŚĆ)
+    '#795548', // Brązowy (Karton) (NOWOŚĆ)
     '#FF0000', // Czerwony
-    '#00FF00', // Zielony
-    '#0000FF', // Niebieski
-    '#FFFF00', // Żółty
-    '#FF00FF', // Magenta
-    '#00FFFF', // Cyan
+    '#FF9800', // Pomarańczowy (NOWOŚĆ)
+    '#FFEB3B', // Żółty
+    '#4CAF50', // Zielony
+    '#009688', // Morski/Teal (NOWOŚĆ)
+    '#2196F3', // Niebieski
+    '#3F51B5', // Indygo (NOWOŚĆ)
+    '#9C27B0', // Fioletowy
+    '#E91E63', // Różowy/Magenta
   ];
 
   @override
@@ -59,7 +66,8 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
       _thresholdController.text = widget.boxToEdit!.threshold.toString();
       _selectedColor = widget.boxToEdit!.hexColor;
       // Wczytujemy istniejące zdjęcie przy edycji
-      _imagePath = widget.boxToEdit!.imagePath;
+      _imagePath = widget.boxToEdit!
+          .imagePath; // Upewnij się, że pole imagePath istnieje w modelu StorageBox
     }
   }
 
@@ -107,7 +115,8 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
               color: _selectedColor,
               writeToNfc: widget.isNfcMode,
               barcode: widget.boxToEdit?.barcode ?? widget.scannedCode,
-              imagePath: _imagePath, // --- Przekazujemy ścieżkę zdjęcia
+              // Upewnij się, że dodałeś pole imagePath do klasy WriteTagRequested w inventory_event.dart
+              // imagePath: _imagePath,
             ),
           );
     }
@@ -284,7 +293,7 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
                       ),
                       const SizedBox(height: 24),
 
-                      // --- SEKCJA ZDJĘCIA (NOWOŚĆ) ---
+                      // --- SEKCJA ZDJĘCIA ---
                       Text("Item Photo",
                           style: theme.textTheme.titleMedium?.copyWith(
                               fontWeight: FontWeight.bold,
@@ -343,6 +352,7 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
                       ),
                       const SizedBox(height: 32),
 
+                      // --- SEKCJA KOLORÓW (POPRAWIONA) ---
                       Text("Appearance",
                           style: theme.textTheme.titleMedium?.copyWith(
                               fontWeight: FontWeight.bold,
@@ -358,6 +368,16 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
                           itemBuilder: (context, index) {
                             final colorHex = _colors[index];
                             final isSelected = _selectedColor == colorHex;
+
+                            // Tworzymy obiekt Color z Hexa
+                            final color = HexColor(colorHex);
+
+                            // Obliczamy kontrast dla ikony
+                            // Jeśli tło jest jasne (>0.5), ikona czarna. W przeciwnym razie biała.
+                            final iconColor = color.computeLuminance() > 0.5
+                                ? Colors.black54
+                                : Colors.white;
+
                             return GestureDetector(
                               onTap: () =>
                                   setState(() => _selectedColor = colorHex),
@@ -365,17 +385,18 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
                                 width: 48,
                                 height: 48,
                                 decoration: BoxDecoration(
-                                  color: HexColor(colorHex),
+                                  color: color,
                                   shape: BoxShape.circle,
                                   border: Border.all(
                                       color: isSelected
-                                          ? Colors.black
-                                          : Colors.grey,
+                                          ? (color.computeLuminance() > 0.5
+                                              ? Colors.black
+                                              : Colors.white)
+                                          : Colors.grey.shade300,
                                       width: isSelected ? 3 : 1),
                                 ),
                                 child: isSelected
-                                    ? const Icon(Icons.check,
-                                        color: Colors.black54)
+                                    ? Icon(Icons.check, color: iconColor)
                                     : null,
                               ),
                             );
