@@ -1,5 +1,10 @@
+import 'dart:io'; // Do obsługi plików
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:image_picker/image_picker.dart'; // Do aparatu
+import 'package:path_provider/path_provider.dart'; // Do ścieżek
+import 'package:path/path.dart' as path; // Do operacji na nazwach plików
+
 import 'package:grid_storage_nfc/features/inventory/domain/entities/storage_box.dart';
 import 'package:grid_storage_nfc/features/inventory/presentation/bloc/inventory_bloc.dart';
 import 'package:hexcolor/hexcolor.dart';
@@ -28,6 +33,7 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
   late TextEditingController _thresholdController;
 
   String _selectedColor = '#FFFFFF';
+  String? _imagePath; // --- Zmienna na ścieżkę do zdjęcia
   bool _isLoading = false;
 
   final List<String> _colors = [
@@ -52,6 +58,8 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
       _quantityController.text = widget.boxToEdit!.quantity.toString();
       _thresholdController.text = widget.boxToEdit!.threshold.toString();
       _selectedColor = widget.boxToEdit!.hexColor;
+      // Wczytujemy istniejące zdjęcie przy edycji
+      _imagePath = widget.boxToEdit!.imagePath;
     }
   }
 
@@ -61,6 +69,28 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
     _quantityController.dispose();
     _thresholdController.dispose();
     super.dispose();
+  }
+
+  // --- FUNKCJA ROBIENIA ZDJĘCIA ---
+  Future<void> _takePicture() async {
+    final picker = ImagePicker();
+    // Ustawiamy jakość na 50, żeby zdjęcia nie zajmowały za dużo miejsca
+    final XFile? image = await picker.pickImage(
+      source: ImageSource.camera,
+      imageQuality: 50,
+      maxWidth: 1024,
+    );
+
+    if (image == null) return;
+
+    // Zapisujemy zdjęcie w trwałym katalogu aplikacji
+    final appDir = await getApplicationDocumentsDirectory();
+    final fileName = path.basename(image.path);
+    final savedImage = await File(image.path).copy('${appDir.path}/$fileName');
+
+    setState(() {
+      _imagePath = savedImage.path;
+    });
   }
 
   void _submit() {
@@ -77,6 +107,7 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
               color: _selectedColor,
               writeToNfc: widget.isNfcMode,
               barcode: widget.boxToEdit?.barcode ?? widget.scannedCode,
+              imagePath: _imagePath, // --- Przekazujemy ścieżkę zdjęcia
             ),
           );
     }
@@ -149,7 +180,6 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
         appBar: AppBar(
           title: Text(appBarTitle),
           centerTitle: true,
-          // Usunąłem actions z AppBar zgodnie z życzeniem
         ),
         body: Stack(
           children: [
@@ -252,6 +282,65 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
                           )),
                         ],
                       ),
+                      const SizedBox(height: 24),
+
+                      // --- SEKCJA ZDJĘCIA (NOWOŚĆ) ---
+                      Text("Item Photo",
+                          style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: theme.colorScheme.primary)),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          // Podgląd zdjęcia
+                          GestureDetector(
+                            onTap: _takePicture,
+                            child: Container(
+                              width: 100,
+                              height: 100,
+                              decoration: BoxDecoration(
+                                color: Colors.grey[200],
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(color: Colors.grey.shade400),
+                                image: _imagePath != null &&
+                                        File(_imagePath!).existsSync()
+                                    ? DecorationImage(
+                                        image: FileImage(File(_imagePath!)),
+                                        fit: BoxFit.cover,
+                                      )
+                                    : null,
+                              ),
+                              child: _imagePath == null
+                                  ? const Icon(Icons.camera_alt,
+                                      size: 40, color: Colors.grey)
+                                  : null,
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          // Przyciski
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                OutlinedButton.icon(
+                                  onPressed: _takePicture,
+                                  icon: const Icon(Icons.camera_alt_outlined),
+                                  label: const Text('Take Photo'),
+                                ),
+                                if (_imagePath != null)
+                                  TextButton.icon(
+                                    onPressed: () =>
+                                        setState(() => _imagePath = null),
+                                    icon: const Icon(Icons.delete_outline,
+                                        color: Colors.red),
+                                    label: const Text('Remove Photo',
+                                        style: TextStyle(color: Colors.red)),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
                       const SizedBox(height: 32),
 
                       Text("Appearance",
@@ -311,7 +400,7 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
                         ),
                       ),
 
-                      // PRZYCISK USUWANIA (Tylko przy edycji, styl z InventoryPage)
+                      // PRZYCISK USUWANIA (Tylko przy edycji)
                       if (isEditing) ...[
                         const SizedBox(height: 24),
                         SizedBox(

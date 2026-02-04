@@ -21,13 +21,6 @@ class SettingsPage extends StatelessWidget {
           ),
           SliverList(
             delegate: SliverChildListDelegate([
-              // --- APPEARANCE ---
-              _buildSectionHeader(context, 'Appearance'),
-
-              const ThemeSelectorCard(),
-
-              const SizedBox(height: 8),
-
               // --- DATA & SYNC (ZGRUPOWANE) ---
               _buildSectionHeader(context, 'Data & Synchronization'),
 
@@ -151,6 +144,13 @@ class SettingsPage extends StatelessWidget {
                   ],
                 ),
               ),
+
+              const SizedBox(height: 8),
+              // --- APPEARANCE ---
+
+              _buildSectionHeader(context, 'Appearance'),
+
+              const ThemeSelectorCard(),
 
               const SizedBox(height: 8),
 

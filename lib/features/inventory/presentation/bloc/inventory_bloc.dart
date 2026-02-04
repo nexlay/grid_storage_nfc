@@ -64,7 +64,6 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
       final allItems = await getInventoryList();
 
       // --- DEBUGOWANIE ---
-      // To pokaże w konsoli co masz w bazie
       print("📦 ZAWARTOŚĆ BAZY (${allItems.length} elementów):");
       for (var b in allItems) {
         print(
@@ -133,8 +132,9 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
           hexColor: event.color,
           lastUsed: DateTime.now(),
           isSynced: false,
-          // Przy edycji zazwyczaj nie nadpisujemy barcode, chyba że dodasz taką opcję w UI
-          // barcode: event.barcode ?? existingBox.barcode,
+          imagePath: event
+              .imagePath, // <--- NOWOŚĆ: Zapisujemy ścieżkę zdjęcia przy edycji
+          // barcode: event.barcode ?? existingBox.barcode, // Barcode zazwyczaj się nie zmienia przy edycji
         );
       } else {
         // --- NOWY PRZEDMIOT ---
@@ -146,7 +146,9 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
           ..modelPath = 'assets/models/box.glb'
           ..lastUsed = DateTime.now()
           ..isSynced = false
-          ..barcode = event.barcode; // <--- WAŻNE: Zapisujemy kod kreskowy/QR
+          ..barcode = event.barcode
+          ..imagePath = event
+              .imagePath; // <--- NOWOŚĆ: Zapisujemy ścieżkę zdjęcia przy tworzeniu
       }
 
       // 1. Zapis do bazy

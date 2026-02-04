@@ -1,9 +1,11 @@
+import 'dart:io'; // --- 1. Dodano import do obsługi plików
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:grid_storage_nfc/features/inventory/domain/entities/storage_box.dart';
 import 'package:grid_storage_nfc/features/inventory/presentation/bloc/inventory_bloc.dart';
 import 'package:grid_storage_nfc/features/inventory/presentation/pages/barcode_scanner_page.dart';
 import 'package:grid_storage_nfc/features/inventory/presentation/pages/setup_tag_screen.dart';
+// Box3DViewer nie jest już konieczny w głównej karcie, ale zostawiam import, gdybyś chciał go użyć gdzieś indziej
 import 'package:grid_storage_nfc/features/inventory/presentation/widgets/box_3d_viewer.dart';
 import 'package:intl/intl.dart';
 
@@ -55,10 +57,11 @@ class InventoryPage extends StatelessWidget {
 
       body: BlocBuilder<InventoryBloc, InventoryState>(
         buildWhen: (previous, current) {
-          // Przebuduj tylko jeśli zmieniło się ID lub ilość (optymalizacja)
+          // Przebuduj tylko jeśli zmieniło się ID, ilość lub zdjęcie (optymalizacja)
           if (previous is InventoryLoaded && current is InventoryLoaded) {
             return previous.box.id != current.box.id ||
-                previous.box.quantity != current.box.quantity;
+                previous.box.quantity != current.box.quantity ||
+                previous.box.imagePath != current.box.imagePath;
           }
           return true;
         },
@@ -102,7 +105,6 @@ class InventoryPage extends StatelessWidget {
                           MaterialPageRoute(
                             builder: (_) => SetupTagScreen(
                               isNfcMode: false, // Wyłączamy NFC
-                              // --- KLUCZOWA POPRAWKA PONIŻEJ ---
                               // Przekazujemy zeskanowany kod z błędu do formularza
                               scannedCode: state.scannedCode,
                             ),
@@ -188,8 +190,6 @@ class InventoryPage extends StatelessWidget {
         SliverAppBar.large(
           title: ListTile(
             title: Text(box.itemName),
-            titleTextStyle:
-                const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             subtitle: Text(
               'Last updated: ${_formatDate(box.lastUsed)}',
             ),
@@ -200,7 +200,7 @@ class InventoryPage extends StatelessWidget {
               24, 24, 24, 100), // Padding na dole dla FAB
           sliver: SliverList(
             delegate: SliverChildListDelegate([
-              // 1. KARTA Z MODELEM 3D
+              // 1. KARTA ZE ZDJĘCIEM (LUB PLACEHOLDEREM)
               _buildImageCard(context, box),
 
               const SizedBox(height: 40),
@@ -267,11 +267,17 @@ class InventoryPage extends StatelessWidget {
   // --- WIDGETY POMOCNICZE ---
 
   Widget _buildImageCard(BuildContext context, StorageBox box) {
-    Color cardColor =
-        box.hexColor != null ? _hexToColor(box.hexColor!) : Colors.grey;
+    Color cardColor = _hexToColor(box.hexColor);
+
+    // --- 2. LOGIKA SPRAWDZANIA ZDJĘCIA ---
+    // Sprawdzamy czy ścieżka istnieje i czy plik fizycznie jest na dysku
+    bool hasImage = box.imagePath != null &&
+        box.imagePath!.isNotEmpty &&
+        File(box.imagePath!).existsSync();
 
     return Container(
-      height: 250, // Więcej miejsca dla modelu
+      height: 300, // Zwiększyłem nieco wysokość dla lepszego podglądu zdjęcia
+      width: double.infinity,
       decoration: BoxDecoration(
         color: cardColor,
         borderRadius: BorderRadius.circular(24),
@@ -283,28 +289,60 @@ class InventoryPage extends StatelessWidget {
           ),
         ],
       ),
-      // ClipRRect jest potrzebny, żeby model nie wystawał poza zaokrąglenia
+      // ClipRRect przycina zdjęcie do zaokrągleń kontenera
       child: ClipRRect(
         borderRadius: BorderRadius.circular(24),
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            // Tło ozdobne
-            Positioned(
-              right: -20,
-              top: -20,
-              child: Icon(Icons.inventory_2,
-                  size: 150, color: Colors.white.withOpacity(0.1)),
-            ),
+        child: hasImage
+            ? Stack(
+                fit: StackFit.expand,
+                children: [
+                  Image.file(
+                    File(box.imagePath!),
+                    fit: BoxFit.cover, // Wypełnia cały obszar
+                    errorBuilder: (ctx, _, __) =>
+                        _buildNoPhotoPlaceholder(isError: true),
+                  ),
+                  // Opcjonalnie: Gradient na dole, żeby tekst był czytelniejszy (jeśli dodasz tekst na zdjęciu)
+                ],
+              )
+            : _buildNoPhotoPlaceholder(), // Jeśli brak zdjęcia -> Placeholder
+      ),
+    );
+  }
 
-            // WŁAŚCIWY WIDGET 3D
-            Box3DViewer(
-              modelPath: box.modelPath,
-              hexColor: box.hexColor,
+  // --- 3. WIDOK BRAKU ZDJĘCIA (ZAMIAST 3D BOX) ---
+  Widget _buildNoPhotoPlaceholder({bool isError = false}) {
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        // Tło ozdobne (ikona w tle)
+        Positioned(
+          right: -20,
+          top: -20,
+          child: Icon(Icons.image_not_supported_outlined,
+              size: 150, color: Colors.black.withOpacity(0.05)),
+        ),
+        // Treść główna
+        Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              isError ? Icons.broken_image_outlined : Icons.camera_alt_outlined,
+              size: 64,
+              color: Colors.black26,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              isError ? "Error loading photo" : "No photo added",
+              style: const TextStyle(
+                color: Colors.black45,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ],
         ),
-      ),
+      ],
     );
   }
 

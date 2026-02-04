@@ -43,6 +43,7 @@ class WriteTagRequested extends InventoryEvent {
   final String color;
   final bool writeToNfc;
   final String? barcode;
+  final String? imagePath;
 
   const WriteTagRequested({
     this.id,
@@ -53,6 +54,7 @@ class WriteTagRequested extends InventoryEvent {
     required this.color,
     this.writeToNfc = true,
     this.barcode,
+    this.imagePath,
   });
 
   @override
@@ -65,6 +67,7 @@ class WriteTagRequested extends InventoryEvent {
         color,
         writeToNfc,
         barcode ?? '',
+        imagePath ?? '',
       ];
 }
 

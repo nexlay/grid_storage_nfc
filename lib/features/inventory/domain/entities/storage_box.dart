@@ -1,5 +1,4 @@
 import 'package:isar/isar.dart';
-
 part 'storage_box.g.dart';
 
 @collection
@@ -16,6 +15,7 @@ class StorageBox {
 
   bool isSynced = false;
   String? remoteId; // To będzie ID z PostgreSQL (jako String)
+  String? imagePath;
 
   // Konstruktor domyślny
   StorageBox();
@@ -62,6 +62,7 @@ class StorageBox {
     bool? isSynced,
     String? remoteId,
     String? barcode,
+    String? imagePath,
   }) {
     return StorageBox()
       ..id = id ?? this.id
@@ -73,6 +74,7 @@ class StorageBox {
       ..lastUsed = lastUsed ?? this.lastUsed
       ..isSynced = isSynced ?? this.isSynced
       ..remoteId = remoteId ?? this.remoteId
-      ..barcode = barcode ?? this.barcode;
+      ..barcode = barcode ?? this.barcode
+      ..imagePath = imagePath ?? this.imagePath;
   }
 }

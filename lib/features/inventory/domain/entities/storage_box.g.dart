@@ -27,38 +27,43 @@ const StorageBoxSchema = CollectionSchema(
       name: r'hexColor',
       type: IsarType.string,
     ),
-    r'isSynced': PropertySchema(
+    r'imagePath': PropertySchema(
       id: 2,
+      name: r'imagePath',
+      type: IsarType.string,
+    ),
+    r'isSynced': PropertySchema(
+      id: 3,
       name: r'isSynced',
       type: IsarType.bool,
     ),
     r'itemName': PropertySchema(
-      id: 3,
+      id: 4,
       name: r'itemName',
       type: IsarType.string,
     ),
     r'lastUsed': PropertySchema(
-      id: 4,
+      id: 5,
       name: r'lastUsed',
       type: IsarType.dateTime,
     ),
     r'modelPath': PropertySchema(
-      id: 5,
+      id: 6,
       name: r'modelPath',
       type: IsarType.string,
     ),
     r'quantity': PropertySchema(
-      id: 6,
+      id: 7,
       name: r'quantity',
       type: IsarType.long,
     ),
     r'remoteId': PropertySchema(
-      id: 7,
+      id: 8,
       name: r'remoteId',
       type: IsarType.string,
     ),
     r'threshold': PropertySchema(
-      id: 8,
+      id: 9,
       name: r'threshold',
       type: IsarType.long,
     )
@@ -90,6 +95,12 @@ int _storageBoxEstimateSize(
     }
   }
   bytesCount += 3 + object.hexColor.length * 3;
+  {
+    final value = object.imagePath;
+    if (value != null) {
+      bytesCount += 3 + value.length * 3;
+    }
+  }
   bytesCount += 3 + object.itemName.length * 3;
   bytesCount += 3 + object.modelPath.length * 3;
   {
@@ -109,13 +120,14 @@ void _storageBoxSerialize(
 ) {
   writer.writeString(offsets[0], object.barcode);
   writer.writeString(offsets[1], object.hexColor);
-  writer.writeBool(offsets[2], object.isSynced);
-  writer.writeString(offsets[3], object.itemName);
-  writer.writeDateTime(offsets[4], object.lastUsed);
-  writer.writeString(offsets[5], object.modelPath);
-  writer.writeLong(offsets[6], object.quantity);
-  writer.writeString(offsets[7], object.remoteId);
-  writer.writeLong(offsets[8], object.threshold);
+  writer.writeString(offsets[2], object.imagePath);
+  writer.writeBool(offsets[3], object.isSynced);
+  writer.writeString(offsets[4], object.itemName);
+  writer.writeDateTime(offsets[5], object.lastUsed);
+  writer.writeString(offsets[6], object.modelPath);
+  writer.writeLong(offsets[7], object.quantity);
+  writer.writeString(offsets[8], object.remoteId);
+  writer.writeLong(offsets[9], object.threshold);
 }
 
 StorageBox _storageBoxDeserialize(
@@ -128,13 +140,14 @@ StorageBox _storageBoxDeserialize(
   object.barcode = reader.readStringOrNull(offsets[0]);
   object.hexColor = reader.readString(offsets[1]);
   object.id = id;
-  object.isSynced = reader.readBool(offsets[2]);
-  object.itemName = reader.readString(offsets[3]);
-  object.lastUsed = reader.readDateTime(offsets[4]);
-  object.modelPath = reader.readString(offsets[5]);
-  object.quantity = reader.readLong(offsets[6]);
-  object.remoteId = reader.readStringOrNull(offsets[7]);
-  object.threshold = reader.readLong(offsets[8]);
+  object.imagePath = reader.readStringOrNull(offsets[2]);
+  object.isSynced = reader.readBool(offsets[3]);
+  object.itemName = reader.readString(offsets[4]);
+  object.lastUsed = reader.readDateTime(offsets[5]);
+  object.modelPath = reader.readString(offsets[6]);
+  object.quantity = reader.readLong(offsets[7]);
+  object.remoteId = reader.readStringOrNull(offsets[8]);
+  object.threshold = reader.readLong(offsets[9]);
   return object;
 }
 
@@ -150,18 +163,20 @@ P _storageBoxDeserializeProp<P>(
     case 1:
       return (reader.readString(offset)) as P;
     case 2:
-      return (reader.readBool(offset)) as P;
-    case 3:
-      return (reader.readString(offset)) as P;
-    case 4:
-      return (reader.readDateTime(offset)) as P;
-    case 5:
-      return (reader.readString(offset)) as P;
-    case 6:
-      return (reader.readLong(offset)) as P;
-    case 7:
       return (reader.readStringOrNull(offset)) as P;
+    case 3:
+      return (reader.readBool(offset)) as P;
+    case 4:
+      return (reader.readString(offset)) as P;
+    case 5:
+      return (reader.readDateTime(offset)) as P;
+    case 6:
+      return (reader.readString(offset)) as P;
+    case 7:
+      return (reader.readLong(offset)) as P;
     case 8:
+      return (reader.readStringOrNull(offset)) as P;
+    case 9:
       return (reader.readLong(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -591,6 +606,158 @@ extension StorageBoxQueryFilter
         includeLower: includeLower,
         upper: upper,
         includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<StorageBox, StorageBox, QAfterFilterCondition>
+      imagePathIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'imagePath',
+      ));
+    });
+  }
+
+  QueryBuilder<StorageBox, StorageBox, QAfterFilterCondition>
+      imagePathIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'imagePath',
+      ));
+    });
+  }
+
+  QueryBuilder<StorageBox, StorageBox, QAfterFilterCondition> imagePathEqualTo(
+    String? value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'imagePath',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StorageBox, StorageBox, QAfterFilterCondition>
+      imagePathGreaterThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'imagePath',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StorageBox, StorageBox, QAfterFilterCondition> imagePathLessThan(
+    String? value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'imagePath',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StorageBox, StorageBox, QAfterFilterCondition> imagePathBetween(
+    String? lower,
+    String? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'imagePath',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StorageBox, StorageBox, QAfterFilterCondition>
+      imagePathStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'imagePath',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StorageBox, StorageBox, QAfterFilterCondition> imagePathEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'imagePath',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StorageBox, StorageBox, QAfterFilterCondition> imagePathContains(
+      String value,
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'imagePath',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StorageBox, StorageBox, QAfterFilterCondition> imagePathMatches(
+      String pattern,
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'imagePath',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<StorageBox, StorageBox, QAfterFilterCondition>
+      imagePathIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'imagePath',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<StorageBox, StorageBox, QAfterFilterCondition>
+      imagePathIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'imagePath',
+        value: '',
       ));
     });
   }
@@ -1219,6 +1386,18 @@ extension StorageBoxQuerySortBy
     });
   }
 
+  QueryBuilder<StorageBox, StorageBox, QAfterSortBy> sortByImagePath() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'imagePath', Sort.asc);
+    });
+  }
+
+  QueryBuilder<StorageBox, StorageBox, QAfterSortBy> sortByImagePathDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'imagePath', Sort.desc);
+    });
+  }
+
   QueryBuilder<StorageBox, StorageBox, QAfterSortBy> sortByIsSynced() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'isSynced', Sort.asc);
@@ -1342,6 +1521,18 @@ extension StorageBoxQuerySortThenBy
     });
   }
 
+  QueryBuilder<StorageBox, StorageBox, QAfterSortBy> thenByImagePath() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'imagePath', Sort.asc);
+    });
+  }
+
+  QueryBuilder<StorageBox, StorageBox, QAfterSortBy> thenByImagePathDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'imagePath', Sort.desc);
+    });
+  }
+
   QueryBuilder<StorageBox, StorageBox, QAfterSortBy> thenByIsSynced() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'isSynced', Sort.asc);
@@ -1443,6 +1634,13 @@ extension StorageBoxQueryWhereDistinct
     });
   }
 
+  QueryBuilder<StorageBox, StorageBox, QDistinct> distinctByImagePath(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'imagePath', caseSensitive: caseSensitive);
+    });
+  }
+
   QueryBuilder<StorageBox, StorageBox, QDistinct> distinctByIsSynced() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'isSynced');
@@ -1506,6 +1704,12 @@ extension StorageBoxQueryProperty
   QueryBuilder<StorageBox, String, QQueryOperations> hexColorProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'hexColor');
+    });
+  }
+
+  QueryBuilder<StorageBox, String?, QQueryOperations> imagePathProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'imagePath');
     });
   }
 

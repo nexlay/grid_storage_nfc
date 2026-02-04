@@ -32,19 +32,95 @@ class DeveloperInfoPage extends StatelessWidget {
             delegate: SliverChildListDelegate([
               const SizedBox(height: 20),
 
-              // 1. HEADER (AWATAR + NAZWA)
-              Center(
-                child: Column(
-                  children: [
-                    // Awatar z cieniem i obramowaniem
-                    Container(
+              // --- NOWY LAYOUT: STACK (Karta + Awatar) ---
+              Stack(
+                alignment: Alignment.topCenter,
+                children: [
+                  // 1. KARTA (Przesunięta w dół)
+                  Padding(
+                    padding:
+                        const EdgeInsets.only(top: 60.0, left: 16, right: 16),
+                    child: Card(
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(24),
+                        side: BorderSide(
+                          color: colorScheme.outlineVariant.withOpacity(0.5),
+                        ),
+                      ),
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(24.0),
+                        child: Column(
+                          children: [
+                            // Puste miejsce na awatar, który "wchodzi" na kartę
+                            const SizedBox(height: 50),
+
+                            // Imię i Nazwisko
+                            Text(
+                              'Mykola Pryhodskyi',
+                              textAlign: TextAlign.center,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .headlineMedium
+                                  ?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: colorScheme.onSurface,
+                                  ),
+                            ),
+                            const SizedBox(height: 4),
+
+                            // Stanowisko
+                            Text(
+                              'Mobile App Developer',
+                              textAlign: TextAlign.center,
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .bodyLarge
+                                  ?.copyWith(
+                                    color: colorScheme.primary,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                            ),
+
+                            const SizedBox(height: 24),
+                            Divider(
+                                color: colorScheme.outlineVariant
+                                    .withOpacity(0.5)),
+                            const SizedBox(height: 24),
+
+                            // Opis / Bio (Wewnątrz karty)
+                            Text(
+                              'Passionate developer focused on creating clean, efficient, and user-friendly mobile applications using Flutter. Always learning and exploring new technologies.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 15,
+                                height: 1.5,
+                                color: colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // 2. AWATAR (Na wierzchu)
+                  Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context)
+                          .scaffoldBackgroundColor, // Kolor tła, żeby zrobić obrys
+                      shape: BoxShape.circle,
+                    ),
+                    child: Container(
                       padding: const EdgeInsets.all(4),
                       decoration: BoxDecoration(
                         color: colorScheme.surface,
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
-                            color: colorScheme.primary.withOpacity(0.2),
+                            color: colorScheme.shadow.withOpacity(0.1),
                             blurRadius: 20,
                             offset: const Offset(0, 10),
                           ),
@@ -54,7 +130,6 @@ class DeveloperInfoPage extends StatelessWidget {
                           width: 4,
                         ),
                       ),
-                      // Zmień na NetworkImage lub AssetImage swojego zdjęcia
                       child: CircleAvatar(
                         radius: 60,
                         backgroundColor: colorScheme.primaryContainer,
@@ -63,51 +138,17 @@ class DeveloperInfoPage extends StatelessWidget {
                             size: 60, color: colorScheme.onPrimaryContainer),
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Nexlay', // Twoja nazwa/nick
-                      style:
-                          Theme.of(context).textTheme.headlineMedium?.copyWith(
-                                fontWeight: FontWeight.bold,
-                                color: colorScheme.onSurface,
-                              ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Mobile App Developer',
-                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                            color: colorScheme.primary,
-                            fontWeight: FontWeight.w500,
-                          ),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 32),
-
-              // 2. OPIS / BIO
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Text(
-                  'Passionate developer focused on creating clean, efficient, and user-friendly mobile applications using Flutter. Always learning and exploring new technologies.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 16,
-                    height: 1.5,
-                    color: colorScheme.onSurfaceVariant,
                   ),
-                ),
+                ],
               ),
 
               const SizedBox(height: 32),
 
-              // 3. SEKCJA KONTAKTU / LINKÓW
+              // 3. SEKCJA KONTAKTU / LINKÓW (Bez zmian)
               _buildSectionTitle(context, 'Connect'),
 
               const SizedBox(height: 8),
 
-              // Karty linków
               _buildSocialTile(
                 context,
                 icon: Icons.code,
@@ -132,7 +173,7 @@ class DeveloperInfoPage extends StatelessWidget {
 
               const SizedBox(height: 32),
 
-              // 4. TECH STACK (Opcjonalnie)
+              // 4. TECH STACK (Bez zmian)
               _buildSectionTitle(context, 'Tech Stack'),
 
               Padding(
