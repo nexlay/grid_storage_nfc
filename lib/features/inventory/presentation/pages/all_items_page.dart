@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:grid_storage_nfc/features/inventory/presentation/bloc/inventory_bloc.dart';
@@ -32,7 +33,6 @@ class _AllItemsPageState extends State<AllItemsPage> {
     );
   }
 
-  // Helper do kolorów
   Color _hexToColor(String hex) {
     hex = hex.replaceAll('#', '');
     if (hex.length == 6) hex = 'FF$hex';
@@ -41,6 +41,18 @@ class _AllItemsPageState extends State<AllItemsPage> {
     } catch (e) {
       return Colors.grey;
     }
+  }
+
+  // --- HELPER DLA OBRAZKA W AVATARZE ---
+  ImageProvider? _getImageProvider(String? path) {
+    if (path != null && path.isNotEmpty) {
+      if (path.startsWith('http')) {
+        return NetworkImage(path);
+      } else if (File(path).existsSync()) {
+        return FileImage(File(path));
+      }
+    }
+    return null;
   }
 
   @override
@@ -53,7 +65,6 @@ class _AllItemsPageState extends State<AllItemsPage> {
               SnackBar(content: Text(state.message)),
             );
           } else if (state is InventoryInitial) {
-            // Po usunięciu odświeżamy listę
             context.read<InventoryBloc>().add(const LoadAllItems());
           }
         },
@@ -81,14 +92,11 @@ class _AllItemsPageState extends State<AllItemsPage> {
               );
             } else {
               content = SliverPadding(
-                padding: const EdgeInsets.fromLTRB(
-                    16, 16, 16, 100), // Padding na dole na FAB
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
                 sliver: SliverList(
                   delegate: SliverChildBuilderDelegate(
                     (context, index) {
                       final box = state.boxes[index];
-
-                      // LOGIKA LOW STOCK
                       final bool isLowStock = box.quantity <= box.threshold;
 
                       return Dismissible(
@@ -114,7 +122,6 @@ class _AllItemsPageState extends State<AllItemsPage> {
                           elevation: 0,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
-                            // --- CZERWONA RAMKA JEŚLI LOW STOCK ---
                             side: isLowStock
                                 ? BorderSide(
                                     color: Colors.red.withOpacity(0.6),
@@ -127,7 +134,6 @@ class _AllItemsPageState extends State<AllItemsPage> {
                           child: InkWell(
                             borderRadius: BorderRadius.circular(12),
                             onTap: () async {
-                              // NAPRAWA 1: Zapisujemy bloc przed nawigacją
                               final inventoryBloc =
                                   context.read<InventoryBloc>();
 
@@ -138,7 +144,6 @@ class _AllItemsPageState extends State<AllItemsPage> {
                                 ),
                               );
 
-                              // Używamy zmiennej inventoryBloc zamiast context.read
                               inventoryBloc.add(const LoadAllItems());
                             },
                             child: Padding(
@@ -146,22 +151,24 @@ class _AllItemsPageState extends State<AllItemsPage> {
                                   horizontal: 16, vertical: 12),
                               child: Row(
                                 children: [
-                                  // Avatar
+                                  // --- ULEPSZONY AVATAR Z OBRAZKIEM ---
                                   CircleAvatar(
                                     backgroundColor: _hexToColor(box.hexColor),
-                                    child: Text(
-                                      box.itemName.isNotEmpty
-                                          ? box.itemName[0].toUpperCase()
-                                          : '?',
-                                      style: const TextStyle(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.bold),
-                                    ),
+                                    backgroundImage:
+                                        _getImageProvider(box.imagePath),
+                                    child: _getImageProvider(box.imagePath) ==
+                                            null
+                                        ? Text(
+                                            box.itemName.isNotEmpty
+                                                ? box.itemName[0].toUpperCase()
+                                                : '?',
+                                            style: const TextStyle(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.bold),
+                                          )
+                                        : null,
                                   ),
-
                                   const SizedBox(width: 16),
-
-                                  // Treść
                                   Expanded(
                                     child: Column(
                                       crossAxisAlignment:
@@ -174,14 +181,11 @@ class _AllItemsPageState extends State<AllItemsPage> {
                                               fontWeight: FontWeight.w600),
                                         ),
                                         const SizedBox(height: 4),
-
-                                        // --- ILOŚĆ Z OSTRZEŻENIEM ---
                                         Row(
                                           children: [
                                             Text(
                                               'Quantity: ${box.quantity}',
                                               style: TextStyle(
-                                                // Czerwony tekst jeśli niski stan
                                                 color: isLowStock
                                                     ? Colors.red
                                                     : Colors.grey[600],
@@ -202,12 +206,9 @@ class _AllItemsPageState extends State<AllItemsPage> {
                                       ],
                                     ),
                                   ),
-
-                                  // Ikona edycji
                                   IconButton(
                                     icon: const Icon(Icons.edit_outlined),
                                     onPressed: () async {
-                                      // NAPRAWA 2: Zapisujemy bloc przed nawigacją
                                       final inventoryBloc =
                                           context.read<InventoryBloc>();
 
@@ -218,7 +219,6 @@ class _AllItemsPageState extends State<AllItemsPage> {
                                         ),
                                       );
 
-                                      // Używamy zmiennej inventoryBloc
                                       inventoryBloc.add(const LoadAllItems());
                                     },
                                   ),
@@ -256,14 +256,12 @@ class _AllItemsPageState extends State<AllItemsPage> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
-          // NAPRAWA 3: Zapisujemy bloc przed nawigacją
           final inventoryBloc = context.read<InventoryBloc>();
 
           await Navigator.of(context).push(
             MaterialPageRoute(builder: (_) => const SetupTagScreen()),
           );
 
-          // Używamy zmiennej inventoryBloc
           inventoryBloc.add(const LoadAllItems());
         },
         child: const Icon(Icons.add),

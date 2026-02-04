@@ -1,11 +1,10 @@
-import 'dart:io'; // --- 1. Dodano import do obsługi plików
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:grid_storage_nfc/features/inventory/domain/entities/storage_box.dart';
 import 'package:grid_storage_nfc/features/inventory/presentation/bloc/inventory_bloc.dart';
 import 'package:grid_storage_nfc/features/inventory/presentation/pages/barcode_scanner_page.dart';
 import 'package:grid_storage_nfc/features/inventory/presentation/pages/setup_tag_screen.dart';
-// Box3DViewer nie jest już konieczny w głównej karcie, ale zostawiam import, gdybyś chciał go użyć gdzieś indziej
 import 'package:intl/intl.dart';
 
 class InventoryPage extends StatelessWidget {
@@ -14,21 +13,17 @@ class InventoryPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // PRZYCISKI SKANOWANIA (QR + NFC)
       floatingActionButton: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // 1. Przycisk QR / Barcode
           FloatingActionButton(
-            heroTag: 'qr_scan', // Unikalny tag dla animacji
+            heroTag: 'qr_scan',
             onPressed: () async {
-              // Otwieramy skaner i czekamy na wynik
               final String? code = await Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const BarcodeScannerPage()),
               );
 
-              // Jeśli coś zeskanowano, wysyłamy do Bloca
               if (code != null && context.mounted) {
                 context.read<InventoryBloc>().add(ProcessScannedCode(code));
               }
@@ -36,12 +31,9 @@ class InventoryPage extends StatelessWidget {
             backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
             child: const Icon(Icons.qr_code_scanner),
           ),
-
-          const SizedBox(width: 16), // Odstęp
-
-          // 2. Główny przycisk NFC
+          const SizedBox(width: 16),
           FloatingActionButton.extended(
-            heroTag: 'nfc_scan', // Unikalny tag
+            heroTag: 'nfc_scan',
             onPressed: () {
               context.read<InventoryBloc>().add(const ScanTagRequested());
             },
@@ -53,10 +45,8 @@ class InventoryPage extends StatelessWidget {
           ),
         ],
       ),
-
       body: BlocBuilder<InventoryBloc, InventoryState>(
         buildWhen: (previous, current) {
-          // Przebuduj tylko jeśli zmieniło się ID, ilość lub zdjęcie (optymalizacja)
           if (previous is InventoryLoaded && current is InventoryLoaded) {
             return previous.box.id != current.box.id ||
                 previous.box.quantity != current.box.quantity ||
@@ -65,17 +55,12 @@ class InventoryPage extends StatelessWidget {
           return true;
         },
         builder: (context, state) {
-          // --- 1. STAN STARTOWY (PUSTY) ---
           if (state is InventoryInitial || state is InventoryListLoaded) {
             return _buildEmptyState(context);
           }
-
-          // --- 2. ŁADOWANIE ---
           if (state is InventoryLoading) {
             return const Center(child: CircularProgressIndicator());
           }
-
-          // --- 3. BŁĄD ---
           if (state is InventoryError) {
             return Center(
               child: Column(
@@ -85,31 +70,24 @@ class InventoryPage extends StatelessWidget {
                   const SizedBox(height: 16),
                   Text(state.message, style: const TextStyle(fontSize: 16)),
                   const SizedBox(height: 16),
-
-                  // Przycisk powrotu
                   FilledButton.tonal(
                     onPressed: () {
                       context.read<InventoryBloc>().add(const ResetInventory());
                     },
                     child: const Text('Go back'),
                   ),
-
-                  // BONUS: Jeśli przedmiot nie istnieje, pozwól go dodać!
                   if (state.message.contains('not found')) ...[
                     const SizedBox(height: 12),
                     FilledButton(
                       onPressed: () {
-                        // Otwórz formularz dodawania
                         Navigator.of(context).push(
                           MaterialPageRoute(
                             builder: (_) => SetupTagScreen(
-                              isNfcMode: false, // Wyłączamy NFC
-                              // Przekazujemy zeskanowany kod z błędu do formularza
+                              isNfcMode: false,
                               scannedCode: state.scannedCode,
                             ),
                           ),
                         );
-                        // Reset stanu po wyjściu z formularza
                         context
                             .read<InventoryBloc>()
                             .add(const ResetInventory());
@@ -121,19 +99,15 @@ class InventoryPage extends StatelessWidget {
               ),
             );
           }
-
-          // --- 4. ZAŁADOWANO PRZEDMIOT (WYNIK SKANU) ---
           if (state is InventoryLoaded) {
             return _buildLoadedState(context, state.box);
           }
-
           return const Center(child: Text('Something went wrong.'));
         },
       ),
     );
   }
 
-  // --- WIDOK: PUSTY EKRAN SKANERA ---
   Widget _buildEmptyState(BuildContext context) {
     return CustomScrollView(
       slivers: [
@@ -157,7 +131,7 @@ class InventoryPage extends StatelessWidget {
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
-                    Icons.qr_code_scanner, // Zmiana ikony na bardziej ogólną
+                    Icons.qr_code_scanner,
                     size: 80,
                     color: Theme.of(context).disabledColor,
                   ),
@@ -182,7 +156,6 @@ class InventoryPage extends StatelessWidget {
     );
   }
 
-  // --- WIDOK: PRZEDMIOT ZAŁADOWANY ---
   Widget _buildLoadedState(BuildContext context, StorageBox box) {
     return CustomScrollView(
       slivers: [
@@ -195,16 +168,11 @@ class InventoryPage extends StatelessWidget {
           ),
         ),
         SliverPadding(
-          padding: const EdgeInsets.fromLTRB(
-              24, 24, 24, 100), // Padding na dole dla FAB
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 100),
           sliver: SliverList(
             delegate: SliverChildListDelegate([
-              // 1. KARTA ZE ZDJĘCIEM (LUB PLACEHOLDEREM)
               _buildImageCard(context, box),
-
               const SizedBox(height: 40),
-
-              // 2. STEPPER ILOŚCI (Zaktualizowany o logikę Low Stock)
               const Center(
                 child: Text(
                   "Quantity in stock",
@@ -214,12 +182,8 @@ class InventoryPage extends StatelessWidget {
                       fontWeight: FontWeight.w500),
                 ),
               ),
-
               _buildQuantityStepper(context, box),
-
               const SizedBox(height: 80),
-
-              // 3. PRZYCISKI AKCJI (Edit & Delete - Tekstowe na dole)
               Row(
                 children: [
                   Expanded(
@@ -263,19 +227,23 @@ class InventoryPage extends StatelessWidget {
     );
   }
 
-  // --- WIDGETY POMOCNICZE ---
-
+  // --- ZMODYFIKOWANA METODA OBRAZKA (HYBRYDOWA) ---
   Widget _buildImageCard(BuildContext context, StorageBox box) {
     Color cardColor = _hexToColor(box.hexColor);
 
-    // --- 2. LOGIKA SPRAWDZANIA ZDJĘCIA ---
-    // Sprawdzamy czy ścieżka istnieje i czy plik fizycznie jest na dysku
-    bool hasImage = box.imagePath != null &&
-        box.imagePath!.isNotEmpty &&
-        File(box.imagePath!).existsSync();
+    final imagePath = box.imagePath;
+    final bool hasPath = imagePath != null && imagePath.isNotEmpty;
+
+    // 1. Sprawdzamy czy to link internetowy
+    final bool isNetwork = hasPath && imagePath.startsWith('http');
+    // 2. Sprawdzamy czy to plik lokalny (tylko jeśli nie jest siecią)
+    final bool isLocal = hasPath && !isNetwork && File(imagePath).existsSync();
+
+    // Decyzja czy pokazać obrazek
+    final bool showImage = isNetwork || isLocal;
 
     return Container(
-      height: 300, // Zwiększyłem nieco wysokość dla lepszego podglądu zdjęcia
+      height: 300,
       width: double.infinity,
       decoration: BoxDecoration(
         color: cardColor,
@@ -288,40 +256,49 @@ class InventoryPage extends StatelessWidget {
           ),
         ],
       ),
-      // ClipRRect przycina zdjęcie do zaokrągleń kontenera
       child: ClipRRect(
         borderRadius: BorderRadius.circular(24),
-        child: hasImage
+        child: showImage
             ? Stack(
                 fit: StackFit.expand,
                 children: [
-                  Image.file(
-                    File(box.imagePath!),
-                    fit: BoxFit.cover, // Wypełnia cały obszar
-                    errorBuilder: (ctx, _, __) =>
-                        _buildNoPhotoPlaceholder(isError: true),
-                  ),
-                  // Opcjonalnie: Gradient na dole, żeby tekst był czytelniejszy (jeśli dodasz tekst na zdjęciu)
+                  if (isNetwork)
+                    Image.network(
+                      imagePath!,
+                      fit: BoxFit.cover,
+                      loadingBuilder: (context, child, loadingProgress) {
+                        if (loadingProgress == null) return child;
+                        return const Center(
+                          child: CircularProgressIndicator(color: Colors.white),
+                        );
+                      },
+                      errorBuilder: (context, error, stackTrace) =>
+                          _buildNoPhotoPlaceholder(isError: true),
+                    )
+                  else
+                    Image.file(
+                      File(imagePath!),
+                      fit: BoxFit.cover,
+                      errorBuilder: (ctx, _, __) =>
+                          _buildNoPhotoPlaceholder(isError: true),
+                    ),
                 ],
               )
-            : _buildNoPhotoPlaceholder(), // Jeśli brak zdjęcia -> Placeholder
+            : _buildNoPhotoPlaceholder(),
       ),
     );
   }
 
-  // --- 3. WIDOK BRAKU ZDJĘCIA (ZAMIAST 3D BOX) ---
   Widget _buildNoPhotoPlaceholder({bool isError = false}) {
     return Stack(
       alignment: Alignment.center,
       children: [
-        // Tło ozdobne (ikona w tle)
         Positioned(
           right: -20,
           top: -20,
           child: Icon(Icons.image_not_supported_outlined,
               size: 150, color: Colors.black.withOpacity(0.05)),
         ),
-        // Treść główna
         Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -345,18 +322,15 @@ class InventoryPage extends StatelessWidget {
     );
   }
 
-  // --- ZMODYFIKOWANY STEPPER (OSTRZEŻENIA) ---
   Widget _buildQuantityStepper(BuildContext context, StorageBox box) {
-    // 1. Sprawdzenie czy stan jest niski
     final bool isLowStock = box.quantity <= box.threshold;
 
-    // 2. Ustalenie kolorów na podstawie stanu
     final Color quantityColor = isLowStock
         ? Colors.red
         : Theme.of(context).textTheme.bodyLarge?.color ?? Colors.black;
 
     final Color containerColor = isLowStock
-        ? Colors.red.withOpacity(0.1) // Czerwone tło ostrzegawcze
+        ? Colors.red.withOpacity(0.1)
         : Theme.of(context)
             .colorScheme
             .surfaceContainerHighest
@@ -367,7 +341,6 @@ class InventoryPage extends StatelessWidget {
       decoration: BoxDecoration(
         color: containerColor,
         borderRadius: BorderRadius.circular(50),
-        // Opcjonalnie: Czerwona ramka
         border:
             isLowStock ? Border.all(color: Colors.red.withOpacity(0.5)) : null,
       ),
@@ -386,8 +359,6 @@ class InventoryPage extends StatelessWidget {
               }
             },
           ),
-
-          // Środek: Ilość + ewentualna ikona ostrzegawcza
           Row(
             children: [
               if (isLowStock)
@@ -401,12 +372,10 @@ class InventoryPage extends StatelessWidget {
                 style: TextStyle(
                     fontSize: 32,
                     fontWeight: FontWeight.bold,
-                    color: quantityColor // Dynamiczny kolor tekstu
-                    ),
+                    color: quantityColor),
               ),
             ],
           ),
-
           _buildCircleButton(
             context,
             icon: Icons.add,

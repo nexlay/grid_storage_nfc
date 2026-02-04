@@ -1,9 +1,9 @@
-import 'dart:io'; // Do obsługi plików
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:image_picker/image_picker.dart'; // Do aparatu
-import 'package:path_provider/path_provider.dart'; // Do ścieżek
-import 'package:path/path.dart' as path; // Do operacji na nazwach plików
+import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as path;
 
 import 'package:grid_storage_nfc/features/inventory/domain/entities/storage_box.dart';
 import 'package:grid_storage_nfc/features/inventory/presentation/bloc/inventory_bloc.dart';
@@ -33,24 +33,23 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
   late TextEditingController _thresholdController;
 
   String _selectedColor = '#FFFFFF';
-  String? _imagePath; // --- Zmienna na ścieżkę do zdjęcia
+  String? _imagePath;
   bool _isLoading = false;
 
-  // Rozbudowana paleta kolorów
   final List<String> _colors = [
-    '#FFFFFF', // Biały
-    '#000000', // Czarny (NOWOŚĆ)
-    '#9E9E9E', // Szary (NOWOŚĆ)
-    '#795548', // Brązowy (Karton) (NOWOŚĆ)
-    '#FF0000', // Czerwony
-    '#FF9800', // Pomarańczowy (NOWOŚĆ)
-    '#FFEB3B', // Żółty
-    '#4CAF50', // Zielony
-    '#009688', // Morski/Teal (NOWOŚĆ)
-    '#2196F3', // Niebieski
-    '#3F51B5', // Indygo (NOWOŚĆ)
-    '#9C27B0', // Fioletowy
-    '#E91E63', // Różowy/Magenta
+    '#FFFFFF',
+    '#000000',
+    '#9E9E9E',
+    '#795548',
+    '#FF0000',
+    '#FF9800',
+    '#FFEB3B',
+    '#4CAF50',
+    '#009688',
+    '#2196F3',
+    '#3F51B5',
+    '#9C27B0',
+    '#E91E63',
   ];
 
   @override
@@ -65,9 +64,7 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
       _quantityController.text = widget.boxToEdit!.quantity.toString();
       _thresholdController.text = widget.boxToEdit!.threshold.toString();
       _selectedColor = widget.boxToEdit!.hexColor;
-      // Wczytujemy istniejące zdjęcie przy edycji
-      _imagePath = widget.boxToEdit!
-          .imagePath; // Upewnij się, że pole imagePath istnieje w modelu StorageBox
+      _imagePath = widget.boxToEdit!.imagePath;
     }
   }
 
@@ -79,10 +76,8 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
     super.dispose();
   }
 
-  // --- FUNKCJA ROBIENIA ZDJĘCIA ---
   Future<void> _takePicture() async {
     final picker = ImagePicker();
-    // Ustawiamy jakość na 50, żeby zdjęcia nie zajmowały za dużo miejsca
     final XFile? image = await picker.pickImage(
       source: ImageSource.camera,
       imageQuality: 50,
@@ -91,7 +86,6 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
 
     if (image == null) return;
 
-    // Zapisujemy zdjęcie w trwałym katalogu aplikacji
     final appDir = await getApplicationDocumentsDirectory();
     final fileName = path.basename(image.path);
     final savedImage = await File(image.path).copy('${appDir.path}/$fileName');
@@ -121,7 +115,6 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
     }
   }
 
-  // Funkcja usuwania
   void _confirmDelete() {
     showDialog(
       context: context,
@@ -136,12 +129,10 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
           ),
           TextButton(
             onPressed: () {
-              Navigator.pop(ctx); // Zamknij dialog
-              // Wyślij event usuwania
+              Navigator.pop(ctx);
               context.read<InventoryBloc>().add(
                     DeleteBoxRequested(boxId: widget.boxToEdit!.id.toString()),
                   );
-              // Zamknij ekran edycji i wróć do listy
               Navigator.pop(context);
             },
             child: const Text('Delete', style: TextStyle(color: Colors.red)),
@@ -149,6 +140,18 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
         ],
       ),
     );
+  }
+
+  // --- NOWA METODA POMOCNICZA DLA ZDJĘCIA ---
+  ImageProvider? _getImageProvider() {
+    if (_imagePath != null && _imagePath!.isNotEmpty) {
+      if (_imagePath!.startsWith('http')) {
+        return NetworkImage(_imagePath!);
+      } else if (File(_imagePath!).existsSync()) {
+        return FileImage(File(_imagePath!));
+      }
+    }
+    return null;
   }
 
   @override
@@ -163,6 +166,8 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
         isEditing ? 'Update Database' : (useNfc ? 'Write to Tag' : 'Save Item');
     IconData buttonIcon =
         isEditing ? Icons.save_as : (useNfc ? Icons.nfc : Icons.save);
+
+    final bgImage = _getImageProvider();
 
     return BlocListener<InventoryBloc, InventoryState>(
       listener: (context, state) {
@@ -200,7 +205,6 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Potwierdzenie kodu QR
                       if (widget.scannedCode != null && !isEditing)
                         Container(
                           padding: const EdgeInsets.all(12),
@@ -233,13 +237,11 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
                             ],
                           ),
                         ),
-
                       Text("Item Details",
                           style: theme.textTheme.titleMedium?.copyWith(
                               fontWeight: FontWeight.bold,
                               color: theme.colorScheme.primary)),
                       const SizedBox(height: 16),
-
                       TextFormField(
                         controller: _nameController,
                         decoration: InputDecoration(
@@ -253,7 +255,6 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
                             v == null || v.isEmpty ? 'Required' : null,
                       ),
                       const SizedBox(height: 20),
-
                       Row(
                         children: [
                           Expanded(
@@ -291,8 +292,6 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
                         ],
                       ),
                       const SizedBox(height: 24),
-
-                      // --- SEKCJA ZDJĘCIA ---
                       Text("Item Photo",
                           style: theme.textTheme.titleMedium?.copyWith(
                               fontWeight: FontWeight.bold,
@@ -300,7 +299,6 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
                       const SizedBox(height: 12),
                       Row(
                         children: [
-                          // Podgląd zdjęcia
                           GestureDetector(
                             onTap: _takePicture,
                             child: Container(
@@ -310,22 +308,20 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
                                 color: Colors.grey[200],
                                 borderRadius: BorderRadius.circular(16),
                                 border: Border.all(color: Colors.grey.shade400),
-                                image: _imagePath != null &&
-                                        File(_imagePath!).existsSync()
+                                image: bgImage != null
                                     ? DecorationImage(
-                                        image: FileImage(File(_imagePath!)),
+                                        image: bgImage,
                                         fit: BoxFit.cover,
                                       )
                                     : null,
                               ),
-                              child: _imagePath == null
+                              child: bgImage == null
                                   ? const Icon(Icons.camera_alt,
                                       size: 40, color: Colors.grey)
                                   : null,
                             ),
                           ),
                           const SizedBox(width: 16),
-                          // Przyciski
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -350,8 +346,6 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
                         ],
                       ),
                       const SizedBox(height: 32),
-
-                      // --- SEKCJA KOLORÓW (POPRAWIONA) ---
                       Text("Appearance",
                           style: theme.textTheme.titleMedium?.copyWith(
                               fontWeight: FontWeight.bold,
@@ -367,12 +361,7 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
                           itemBuilder: (context, index) {
                             final colorHex = _colors[index];
                             final isSelected = _selectedColor == colorHex;
-
-                            // Tworzymy obiekt Color z Hexa
                             final color = HexColor(colorHex);
-
-                            // Obliczamy kontrast dla ikony
-                            // Jeśli tło jest jasne (>0.5), ikona czarna. W przeciwnym razie biała.
                             final iconColor = color.computeLuminance() > 0.5
                                 ? Colors.black54
                                 : Colors.white;
@@ -403,8 +392,6 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
                         ),
                       ),
                       const SizedBox(height: 40),
-
-                      // PRZYCISK ZAPISU (Główny)
                       SizedBox(
                         width: double.infinity,
                         height: 56,
@@ -419,8 +406,6 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
                           ),
                         ),
                       ),
-
-                      // PRZYCISK USUWANIA (Tylko przy edycji)
                       if (isEditing) ...[
                         const SizedBox(height: 24),
                         SizedBox(
@@ -452,8 +437,6 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
                 ),
               ),
             ),
-
-            // --- Wizualizacja Czekania na NFC ---
             if (_isLoading) _buildLoadingOverlay(context, useNfc),
           ],
         ),

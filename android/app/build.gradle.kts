@@ -10,18 +10,26 @@ android {
     namespace = "com.example.grid_storage_nfc"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
+    
+    // Definiujemy wymiar dla wariantów (flavors)
     flavorDimensions += "env"
 
     productFlavors {
+        // Wariant Office: Zostaje bez zmian (używany lokalnie)
         create("office") {
             dimension = "env"
+            // Wynikowe ID: com.example.grid_storage_nfc.office
             applicationIdSuffix = ".office"
             resValue("string", "app_name", "Grid Storage (Office)")
         }
+        
+        // Wariant Home: Dostosowany do Google Play (PRODUKCJA)
         create("home") {
             dimension = "env"
-            applicationIdSuffix = ".home"
-            resValue("string", "app_name", "Grid Storage (Home)")
+            // Ustawiamy profesjonalne, unikalne ID dla sklepu (nadpisuje domyślne)
+            applicationId = "com.pryhodskyimykola.gridstorage" 
+            // Nazwa widoczna dla użytkownika w sklepie i na telefonie
+            resValue("string", "app_name", "Grid Storage") 
         }
     }
 
@@ -36,7 +44,7 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
+        // To ID jest bazą dla wariantu 'office'
         applicationId = "com.example.grid_storage_nfc"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
@@ -61,5 +69,4 @@ flutter {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
-   
 }

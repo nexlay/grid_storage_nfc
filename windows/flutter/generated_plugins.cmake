@@ -7,6 +7,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
   connectivity_plus
   file_selector_windows
   firebase_core
+  firebase_storage
   flutter_inappwebview_windows
   isar_flutter_libs
   url_launcher_windows
