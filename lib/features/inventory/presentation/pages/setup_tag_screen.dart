@@ -4,10 +4,14 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
-
 import 'package:grid_storage_nfc/features/inventory/domain/entities/storage_box.dart';
 import 'package:grid_storage_nfc/features/inventory/presentation/bloc/inventory_bloc.dart';
 import 'package:hexcolor/hexcolor.dart';
+
+// Importy do drukowania (pdf & printing)
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 
 class SetupTagScreen extends StatefulWidget {
   final StorageBox? boxToEdit;
@@ -76,6 +80,54 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
     super.dispose();
   }
 
+  // --- LOGIKA DRUKOWANIA ---
+  Future<void> _printLabel() async {
+    final barcodeData = widget.boxToEdit?.barcode ?? widget.scannedCode;
+    final itemName =
+        _nameController.text.isNotEmpty ? _nameController.text : "Item";
+
+    if (barcodeData == null || barcodeData.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("No barcode to print.")),
+      );
+      return;
+    }
+
+    final doc = pw.Document();
+
+    doc.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.roll80,
+        build: (pw.Context context) {
+          return pw.Center(
+            child: pw.Column(
+              mainAxisSize: pw.MainAxisSize.min,
+              children: [
+                pw.Text(itemName,
+                    style: pw.TextStyle(
+                        fontSize: 20, fontWeight: pw.FontWeight.bold)),
+                pw.SizedBox(height: 10),
+                pw.BarcodeWidget(
+                  barcode: pw.Barcode.qrCode(),
+                  data: barcodeData,
+                  width: 150,
+                  height: 150,
+                ),
+                pw.SizedBox(height: 5),
+                pw.Text(barcodeData, style: const pw.TextStyle(fontSize: 10)),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+
+    await Printing.layoutPdf(
+      onLayout: (PdfPageFormat format) async => doc.save(),
+      name: 'Label_${itemName}_$barcodeData',
+    );
+  }
+
   Future<void> _takePicture() async {
     final picker = ImagePicker();
     final XFile? image = await picker.pickImage(
@@ -99,11 +151,15 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
     if (_formKey.currentState!.validate()) {
       FocusScope.of(context).unfocus();
 
+      int? idToSend;
+      if (widget.boxToEdit != null) {
+        idToSend = widget.boxToEdit!.id;
+      }
+
       context.read<InventoryBloc>().add(
             WriteTagRequested(
-              id: widget.boxToEdit?.id.toString(),
+              id: idToSend,
               name: _nameController.text,
-              description: '',
               quantity: int.parse(_quantityController.text),
               threshold: int.parse(_thresholdController.text),
               color: _selectedColor,
@@ -142,7 +198,6 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
     );
   }
 
-  // --- NOWA METODA POMOCNICZA DLA ZDJĘCIA ---
   ImageProvider? _getImageProvider() {
     if (_imagePath != null && _imagePath!.isNotEmpty) {
       if (_imagePath!.startsWith('http')) {
@@ -169,6 +224,10 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
 
     final bgImage = _getImageProvider();
 
+    // Sprawdzamy, czy jest dostępny kod (z bazy lub ze skanera)
+    final hasBarcode =
+        widget.boxToEdit?.barcode != null || widget.scannedCode != null;
+
     return BlocListener<InventoryBloc, InventoryState>(
       listener: (context, state) {
         setState(() {
@@ -193,6 +252,7 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
         appBar: AppBar(
           title: Text(appBarTitle),
           centerTitle: true,
+          // USUNIĘTO actions z AppBar, aby ikona była tylko przy kodzie
         ),
         body: Stack(
           children: [
@@ -205,7 +265,8 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      if (widget.scannedCode != null && !isEditing)
+                      // --- ZIELONY PASEK Z KODEM I IKONĄ DRUKOWANIA ---
+                      if (hasBarcode)
                         Container(
                           padding: const EdgeInsets.all(12),
                           margin: const EdgeInsets.only(bottom: 24),
@@ -222,21 +283,29 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    const Text('Linking Barcode:',
+                                    const Text('Associated Code:',
                                         style: TextStyle(
                                             fontSize: 12, color: Colors.green)),
-                                    Text(widget.scannedCode!,
+                                    Text(
+                                        widget.boxToEdit?.barcode ??
+                                            widget.scannedCode!,
                                         style: const TextStyle(
                                             fontWeight: FontWeight.bold,
-                                            fontSize: 16)),
+                                            fontSize: 14)),
                                   ],
                                 ),
                               ),
-                              const Icon(Icons.check_circle,
-                                  color: Colors.green),
+                              // TUTAJ JEST PRZYCISK DRUKOWANIA
+                              IconButton(
+                                icon: const Icon(Icons.print,
+                                    color: Colors.green),
+                                onPressed: _printLabel,
+                                tooltip: 'Print Label',
+                              ),
                             ],
                           ),
                         ),
+
                       Text("Item Details",
                           style: theme.textTheme.titleMedium?.copyWith(
                               fontWeight: FontWeight.bold,

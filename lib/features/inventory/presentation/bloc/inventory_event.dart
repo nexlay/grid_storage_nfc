@@ -4,51 +4,72 @@ abstract class InventoryEvent extends Equatable {
   const InventoryEvent();
 
   @override
-  List<Object> get props => [];
+  List<Object?> get props => [];
 }
 
-class ScanTagRequested extends InventoryEvent {
-  const ScanTagRequested();
-}
-
-class UpdateQuantity extends InventoryEvent {
-  final String boxId;
-  final int newQuantity;
-
-  const UpdateQuantity({required this.boxId, required this.newQuantity});
-
-  @override
-  List<Object> get props => [boxId, newQuantity];
-}
-
-class LoadInventory extends InventoryEvent {
-  const LoadInventory();
-}
-
-// New event
+/// Żądanie załadowania listy wszystkich przedmiotów
 class LoadAllItems extends InventoryEvent {
   const LoadAllItems();
 }
 
+/// Reset stanu do początkowego
 class ResetInventory extends InventoryEvent {
   const ResetInventory();
 }
 
+/// Rozpoczęcie skanowania NFC (odczyt)
+class ScanTagRequested extends InventoryEvent {
+  const ScanTagRequested();
+}
+
+/// Przetworzenie ręcznie wpisanego lub zeskanowanego kodu (QR/Manual ID)
+class ProcessScannedCode extends InventoryEvent {
+  final String rawCode;
+
+  const ProcessScannedCode(this.rawCode);
+
+  @override
+  List<Object?> get props => [rawCode];
+}
+
+/// Aktualizacja ilości
+class UpdateQuantity extends InventoryEvent {
+  final String boxId;
+  final int newQuantity;
+
+  const UpdateQuantity({
+    required this.boxId,
+    required this.newQuantity,
+  });
+
+  @override
+  List<Object?> get props => [boxId, newQuantity];
+}
+
+/// Żądanie usunięcia pudełka
+class DeleteBoxRequested extends InventoryEvent {
+  final String boxId;
+
+  const DeleteBoxRequested({required this.boxId});
+
+  @override
+  List<Object?> get props => [boxId];
+}
+
+/// Żądanie zapisu (utworzenie nowego lub edycja)
 class WriteTagRequested extends InventoryEvent {
-  final String? id; // Optional ID for editing existing items
+  final int? id; // null = nowy przedmiot
   final String name;
-  final String description;
   final int quantity;
   final int threshold;
   final String color;
   final bool writeToNfc;
-  final String? barcode;
-  final String? imagePath;
+  final String? barcode; // Nowe pole: Kod (np. LOC-123...)
+  final String? imagePath; // Nowe pole: Ścieżka do zdjęcia
 
   const WriteTagRequested({
     this.id,
     required this.name,
-    required this.description,
     required this.quantity,
     required this.threshold,
     required this.color,
@@ -58,33 +79,6 @@ class WriteTagRequested extends InventoryEvent {
   });
 
   @override
-  List<Object> get props => [
-        id ?? '',
-        name,
-        description,
-        quantity,
-        threshold,
-        color,
-        writeToNfc,
-        barcode ?? '',
-        imagePath ?? '',
-      ];
-}
-
-class ProcessScannedCode extends InventoryEvent {
-  final String rawCode;
-  const ProcessScannedCode(this.rawCode);
-
-  @override
-  List<Object> get props => [rawCode];
-}
-
-// Renamed event
-class DeleteBoxRequested extends InventoryEvent {
-  final String boxId;
-
-  const DeleteBoxRequested({required this.boxId});
-
-  @override
-  List<Object> get props => [boxId];
+  List<Object?> get props =>
+      [id, name, quantity, threshold, color, writeToNfc, barcode, imagePath];
 }

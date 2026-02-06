@@ -61,6 +61,9 @@ dependencies:
   firebase_storage: ^13.0.6
   google_sign_in: 6.2.1
   firebase_auth: ^6.1.4
+  qr_flutter: ^4.1.0
+  pdf: ^3.10.4        
+  printing: ^5.11.1   
 dev_dependencies:
   flutter_test:
     sdk: flutter

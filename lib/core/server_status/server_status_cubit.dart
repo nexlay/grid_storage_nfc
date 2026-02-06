@@ -1,13 +1,11 @@
+import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:grid_storage_nfc/features/inventory/domain/usecases/sync_pending_items.dart';
-import 'package:internet_connection_checker_plus/internet_connection_checker_plus.dart'; // Dodaj import!
+import 'package:internet_connection_checker_plus/internet_connection_checker_plus.dart';
 
-// ==========================================
-// CZĘŚĆ 1: DEFINICJE STANÓW
-// ==========================================
-
+// --- DEFINICJE STANÓW ---
 abstract class ServerStatusState {}
 
 class ServerStatusInitial extends ServerStatusState {}
@@ -20,17 +18,16 @@ class ServerStatusOnline extends ServerStatusState {}
 
 class ServerStatusOffline extends ServerStatusState {}
 
-// ==========================================
-// CZĘŚĆ 2: LOGIKA (CUBIT)
-// ==========================================
-
+// --- CUBIT ---
 class ServerStatusCubit extends Cubit<ServerStatusState> {
   final http.Client client;
   final SyncPendingItems syncPendingItems;
-  final String serviceName; // np. "QNAP" lub "Firebase"
-  final String? checkUrl; // np. "http://192..." dla QNAP, null dla Firebase
+  final String serviceName; // 'QNAP' lub 'Firebase'
+  final String? checkUrl; // URL dla QNAP
 
   static const String _prefKey = 'sync_enabled';
+  Timer? _statusTimer;
+  bool _isSyncEnabled = true;
 
   ServerStatusCubit({
     required this.client,
@@ -41,69 +38,92 @@ class ServerStatusCubit extends Cubit<ServerStatusState> {
     _init();
   }
 
-  // 1. Start: Sprawdź co użytkownik ustawił ostatnio
   Future<void> _init() async {
     final prefs = await SharedPreferences.getInstance();
-    final isEnabled = prefs.getBool(_prefKey) ?? true;
+    _isSyncEnabled = prefs.getBool(_prefKey) ?? true;
 
-    if (isEnabled) {
-      checkConnection();
+    if (_isSyncEnabled) {
+      _startAutoRefresh();
     } else {
       emit(ServerStatusDisabled());
     }
   }
 
-  // 2. Przełącznik w ustawieniach
+  void _startAutoRefresh() {
+    checkConnection(); // Sprawdź od razu
+
+    // Co 10 sekund sprawdzaj połączenie w tle
+    _statusTimer?.cancel();
+    _statusTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      if (_isSyncEnabled) {
+        checkConnection(isBackground: true);
+      }
+    });
+  }
+
   Future<void> toggleSync(bool enable) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_prefKey, enable);
+    _isSyncEnabled = enable;
 
     if (enable) {
-      checkConnection();
+      _startAutoRefresh();
     } else {
+      _statusTimer?.cancel();
       emit(ServerStatusDisabled());
     }
   }
 
-  // 3. Sprawdzanie połączenia
-  Future<void> checkConnection() async {
-    emit(ServerStatusChecking());
+  Future<void> checkConnection({bool isBackground = false}) async {
+    if (!_isSyncEnabled) return;
+
+    if (!isBackground) {
+      emit(ServerStatusChecking());
+    }
 
     try {
       bool isConnected = false;
 
       if (checkUrl != null) {
-        // --- TRYB QNAP (Pingujemy konkretny serwer) ---
+        // --- TRYB QNAP (Ping URL) ---
         try {
           final response = await client.get(Uri.parse(checkUrl!)).timeout(
-                const Duration(seconds: 2),
+                const Duration(seconds: 3),
               );
-          if (response.statusCode == 200) {
+          // 200-299 uznajemy za sukces
+          if (response.statusCode >= 200 && response.statusCode < 300) {
             isConnected = true;
           }
-        } catch (e) {
+        } catch (_) {
           isConnected = false;
         }
       } else {
-        // --- TRYB FIREBASE (Sprawdzamy tylko czy jest internet) ---
-        // Firebase sam dba o resztę, ważne żeby telefon miał sieć
+        // --- TRYB FIREBASE (Internet Check) ---
         isConnected = await InternetConnection().hasInternetAccess;
       }
 
       if (isConnected) {
-        // Połączenie jest OK.
-        // Teraz uruchamiamy synchronizację zaległych itemów w tle
-        // (nie czekamy aż się skończy, żeby nie blokować UI)
-        syncPendingItems().then((_) {
-          print('🔄 Auto-sync ($serviceName) triggered from StatusCubit');
-        });
-
+        _tryAutoSync();
         emit(ServerStatusOnline());
       } else {
         emit(ServerStatusOffline());
       }
-    } catch (e) {
+    } catch (_) {
       emit(ServerStatusOffline());
     }
+  }
+
+  Future<void> _tryAutoSync() async {
+    try {
+      await syncPendingItems();
+    } catch (e) {
+      // Błąd w tle - ignorujemy
+    }
+  }
+
+  @override
+  Future<void> close() {
+    _statusTimer?.cancel();
+    return super.close();
   }
 }

@@ -15,6 +15,7 @@ class InventoryLoading extends InventoryState {
   const InventoryLoading();
 }
 
+/// Stan: Pojedynczy przedmiot załadowany (np. po skanie lub ręcznym wyborze)
 class InventoryLoaded extends InventoryState {
   final StorageBox box;
   final bool isLowStock;
@@ -22,29 +23,15 @@ class InventoryLoaded extends InventoryState {
 
   const InventoryLoaded({
     required this.box,
-    this.isLowStock = false,
+    required this.isLowStock,
     this.message,
   });
 
   @override
-  List<Object?> get props => [
-        box,
-        isLowStock,
-        message,
-      ];
+  List<Object?> get props => [box, isLowStock, message];
 }
 
-class InventoryError extends InventoryState {
-  final String message;
-  final String? scannedCode;
-
-  const InventoryError(this.message, {this.scannedCode});
-
-  @override
-  List<Object?> get props => [message, scannedCode];
-}
-
-// New state
+/// Stan: Lista przedmiotów załadowana (dla ekranu All Items)
 class InventoryListLoaded extends InventoryState {
   final List<StorageBox> boxes;
 
@@ -52,4 +39,15 @@ class InventoryListLoaded extends InventoryState {
 
   @override
   List<Object?> get props => [boxes];
+}
+
+/// Stan: Błąd
+class InventoryError extends InventoryState {
+  final String message;
+  final String? scannedCode; // Kod, którego nie znaleziono w bazie
+
+  const InventoryError(this.message, {this.scannedCode});
+
+  @override
+  List<Object?> get props => [message, scannedCode];
 }

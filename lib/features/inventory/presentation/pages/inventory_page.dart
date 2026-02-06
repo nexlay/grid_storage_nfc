@@ -10,12 +10,112 @@ import 'package:intl/intl.dart';
 class InventoryPage extends StatelessWidget {
   const InventoryPage({super.key});
 
+  // --- GENERATOR ID (Wirtualny kod) ---
+  String _generateLocalId() {
+    return 'LOC-${DateTime.now().millisecondsSinceEpoch}';
+  }
+
+  // --- DIALOG DODAWANIA RĘCZNEGO ---
+  void _showManualAddDialog(BuildContext context) {
+    final nameController = TextEditingController();
+    final qtyController = TextEditingController(text: '1');
+    final thresholdController = TextEditingController(text: '0');
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Add Item Manually'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'No NFC tag? A virtual ID will be generated for future printing.',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: nameController,
+                decoration: const InputDecoration(
+                  labelText: 'Item Name',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.inventory_2),
+                ),
+                autofocus: true,
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: qtyController,
+                      decoration: const InputDecoration(
+                        labelText: 'Quantity',
+                        border: OutlineInputBorder(),
+                      ),
+                      keyboardType: TextInputType.number,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextField(
+                      controller: thresholdController,
+                      decoration: const InputDecoration(
+                        labelText: 'Min Limit',
+                        border: OutlineInputBorder(),
+                      ),
+                      keyboardType: TextInputType.number,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () {
+              if (nameController.text.isEmpty) return;
+
+              final generatedId = _generateLocalId();
+
+              // Wysyłamy zdarzenie zapisu do Bloca
+              context.read<InventoryBloc>().add(WriteTagRequested(
+                    name: nameController.text,
+                    quantity: int.tryParse(qtyController.text) ?? 1,
+                    threshold: int.tryParse(thresholdController.text) ?? 0,
+                    color: '#2196F3', // Domyślny niebieski
+                    writeToNfc: false, // WAŻNE: Nie próbuj pisać na NFC
+                    barcode: generatedId, // Zapisz nasz wirtualny kod
+                  ));
+
+              Navigator.pop(ctx);
+
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                    content: Text(
+                        'Added "${nameController.text}" (ID: $generatedId)')),
+              );
+            },
+            child: const Text('Save Item'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      // --- DOLNY PASEK PRZYCISKÓW ---
       floatingActionButton: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
+          // 1. SKANER QR
           FloatingActionButton(
             heroTag: 'qr_scan',
             onPressed: () async {
@@ -32,6 +132,18 @@ class InventoryPage extends StatelessWidget {
             child: const Icon(Icons.qr_code_scanner),
           ),
           const SizedBox(width: 16),
+
+          // 2. NOWOŚĆ: DODAJ RĘCZNIE
+          FloatingActionButton(
+            heroTag: 'manual_add',
+            onPressed: () => _showManualAddDialog(context),
+            backgroundColor: Colors.orange.shade100,
+            foregroundColor: Colors.orange.shade900,
+            child: const Icon(Icons.edit_note),
+          ),
+          const SizedBox(width: 16),
+
+          // 3. SKANER NFC
           FloatingActionButton.extended(
             heroTag: 'nfc_scan',
             onPressed: () {
@@ -76,6 +188,7 @@ class InventoryPage extends StatelessWidget {
                     },
                     child: const Text('Go back'),
                   ),
+                  // Jeśli nie znaleziono przedmiotu po skanie, proponujemy utworzenie
                   if (state.message.contains('not found')) ...[
                     const SizedBox(height: 12),
                     FilledButton(
@@ -107,6 +220,8 @@ class InventoryPage extends StatelessWidget {
       ),
     );
   }
+
+  // --- UI POMOCNICZE (Zachowane z Twojego kodu) ---
 
   Widget _buildEmptyState(BuildContext context) {
     return CustomScrollView(
@@ -227,19 +342,12 @@ class InventoryPage extends StatelessWidget {
     );
   }
 
-  // --- ZMODYFIKOWANA METODA OBRAZKA (HYBRYDOWA) ---
   Widget _buildImageCard(BuildContext context, StorageBox box) {
     Color cardColor = _hexToColor(box.hexColor);
-
     final imagePath = box.imagePath;
     final bool hasPath = imagePath != null && imagePath.isNotEmpty;
-
-    // 1. Sprawdzamy czy to link internetowy
     final bool isNetwork = hasPath && imagePath.startsWith('http');
-    // 2. Sprawdzamy czy to plik lokalny (tylko jeśli nie jest siecią)
     final bool isLocal = hasPath && !isNetwork && File(imagePath).existsSync();
-
-    // Decyzja czy pokazać obrazek
     final bool showImage = isNetwork || isLocal;
 
     return Container(
@@ -266,12 +374,6 @@ class InventoryPage extends StatelessWidget {
                     Image.network(
                       imagePath,
                       fit: BoxFit.cover,
-                      loadingBuilder: (context, child, loadingProgress) {
-                        if (loadingProgress == null) return child;
-                        return const Center(
-                          child: CircularProgressIndicator(color: Colors.white),
-                        );
-                      },
                       errorBuilder: (context, error, stackTrace) =>
                           _buildNoPhotoPlaceholder(isError: true),
                     )
@@ -324,11 +426,9 @@ class InventoryPage extends StatelessWidget {
 
   Widget _buildQuantityStepper(BuildContext context, StorageBox box) {
     final bool isLowStock = box.quantity <= box.threshold;
-
     final Color quantityColor = isLowStock
         ? Colors.red
         : Theme.of(context).textTheme.bodyLarge?.color ?? Colors.black;
-
     final Color containerColor = isLowStock
         ? Colors.red.withOpacity(0.1)
         : Theme.of(context)
@@ -450,7 +550,11 @@ class InventoryPage extends StatelessWidget {
   Color _hexToColor(String hex) {
     hex = hex.replaceAll('#', '');
     if (hex.length == 6) hex = 'FF$hex';
-    return Color(int.parse(hex, radix: 16));
+    try {
+      return Color(int.parse(hex, radix: 16));
+    } catch (e) {
+      return Colors.grey;
+    }
   }
 
   String _formatDate(DateTime date) {
