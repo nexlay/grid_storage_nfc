@@ -4,7 +4,7 @@ part 'storage_box.g.dart';
 
 @collection
 class StorageBox {
-  Id id = Isar.autoIncrement; // Lokalne ID (Isar)
+  Id id = Isar.autoIncrement;
 
   late String itemName;
   late int quantity;
@@ -13,20 +13,14 @@ class StorageBox {
   late String modelPath;
   late DateTime lastUsed;
   String? barcode;
-
   bool isSynced = false;
-  String? remoteId; // To będzie ID z PostgreSQL (jako String)
+  String? remoteId;
   String? imagePath;
 
-  // Konstruktor domyślny
   StorageBox();
 
-  // --- NOWOŚĆ: Metody do komunikacji z API ---
-
-  // 1. Zamiana obiektu na JSON (do wysyłki na serwer)
   Map<String, dynamic> toJson() {
     return {
-      // Klucze muszą pasować do nazw kolumn w bazie SQL (snake_case)
       'item_name': itemName,
       'quantity': quantity,
       'threshold': threshold,
@@ -34,7 +28,6 @@ class StorageBox {
       'model_path': modelPath,
       'last_used': lastUsed.toIso8601String(),
       'barcode': barcode,
-      // 👇👇👇 DODANO ZAPIS ZDJĘCIA 👇👇👇
       'image_path': imagePath,
     };
   }
@@ -49,9 +42,8 @@ class StorageBox {
       ..hexColor = json['hex_color'] ?? '#FFFFFF'
       ..modelPath = json['model_path'] ?? ''
       ..lastUsed = DateTime.tryParse(json['last_used'] ?? '') ?? DateTime.now()
-      ..isSynced = true // Skoro przyszło z serwera, to jest zsynchronizowane
+      ..isSynced = true
       ..barcode = json['barcode']
-      // 👇👇👇 DODANO ODCZYT ZDJĘCIA 👇👇👇
       ..imagePath = json['image_path'];
   }
 

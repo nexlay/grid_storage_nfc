@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:firebase_core/firebase_core.dart'; // Do sprawdzania czy Firebase żyje
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:grid_storage_nfc/core/server_status/server_status_cubit.dart';
 import 'package:grid_storage_nfc/core/local_storage/local_storage_cubit.dart';
@@ -44,7 +45,12 @@ class SettingsPage extends StatelessWidget {
 
       if (context.mounted) {
         context.read<InventoryBloc>().add(const ResetInventory());
-        await AuthService().signOut();
+        // Wylogowujemy tylko jeśli Firebase działa
+        try {
+          if (Firebase.apps.isNotEmpty) {
+            await AuthService().signOut();
+          }
+        } catch (_) {}
       }
     }
   }
@@ -74,32 +80,24 @@ class SettingsPage extends StatelessWidget {
     );
 
     if (shouldDelete == true && context.mounted) {
-      // ZAPAMIĘTUJEMY NAWIGATOR, aby móc zamknąć loader po zniszczeniu strony
       final navigator = Navigator.of(context);
 
       try {
-        // Pokazujemy loader
         showDialog(
           context: context,
           barrierDismissible: false,
           builder: (ctx) => const Center(child: CircularProgressIndicator()),
         );
 
-        // 1. Czyścimy lokalnie
         await di.sl<InventoryLocalDataSource>().clearAll();
         if (context.mounted) {
           context.read<InventoryBloc>().add(const ResetInventory());
         }
 
-        // 2. Usuwamy konto i zrywamy sesję Google (disconnect)
         await AuthService().deleteUserAccount();
-
-        // 3. ZAMYKAMY LOADER (używając zapamiętanego navigatora)
         navigator.pop();
       } catch (e) {
-        // Zamykamy loader w razie błędu
         navigator.pop();
-
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -115,10 +113,25 @@ class SettingsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
-    final String displayName = user?.displayName ?? 'User';
-    final String email = user?.email ?? '';
-    final String? photoUrl = user?.photoURL;
+    // --- BEZPIECZNE POBIERANIE DANYCH UŻYTKOWNIKA ---
+    String displayName = 'Local User';
+    String email = 'Offline / QNAP Mode';
+    String? photoUrl;
+    bool isFirebase = false;
+
+    try {
+      if (Firebase.apps.isNotEmpty) {
+        final user = FirebaseAuth.instance.currentUser;
+        if (user != null) {
+          displayName = user.displayName ?? 'User';
+          email = user.email ?? '';
+          photoUrl = user.photoURL;
+          isFirebase = true;
+        }
+      }
+    } catch (_) {
+      // Ignorujemy błędy Firebase w trybie Office
+    }
 
     return Scaffold(
       body: CustomScrollView(
@@ -133,15 +146,22 @@ class SettingsPage extends StatelessWidget {
                 margin: const EdgeInsets.symmetric(horizontal: 16),
                 child: Column(
                   children: [
+                    // LOCAL DATABASE
                     BlocBuilder<LocalStorageCubit, LocalStorageState>(
                       builder: (context, state) {
                         int total =
                             state is LocalStorageLoaded ? state.totalItems : 0;
+                        int pending = state is LocalStorageLoaded
+                            ? state.unsyncedItems
+                            : 0;
+
                         return ListTile(
                           leading: const Icon(Icons.storage_rounded,
                               color: Colors.blue),
                           title: const Text('Local Database'),
-                          subtitle: Text('$total items stored'),
+                          subtitle: Text(pending > 0
+                              ? '$total items stored\n($pending pending sync)'
+                              : '$total items stored'),
                           trailing: IconButton(
                             icon: const Icon(Icons.refresh),
                             onPressed: () =>
@@ -150,16 +170,68 @@ class SettingsPage extends StatelessWidget {
                         );
                       },
                     ),
+
                     const Divider(height: 1),
+
+                    // --- REMOTE STORAGE (QNAP / FIREBASE) ---
+                    // Tutaj przywrócono logikę wyświetlania błędu VPN
                     BlocBuilder<ServerStatusCubit, ServerStatusState>(
                       builder: (context, state) {
-                        final serviceName =
-                            context.read<ServerStatusCubit>().serviceName;
-                        bool isSwitchOn = state is! ServerStatusDisabled;
+                        final cubit = context.read<ServerStatusCubit>();
+                        final serviceName = cubit.serviceName;
+
+                        bool isSwitchOn = false;
+                        String subtitle = "$serviceName Sync is off";
+                        Color iconColor = Colors.grey;
+                        IconData icon = Icons.cloud_off_rounded;
+
+                        if (state is ServerStatusDisabled) {
+                          isSwitchOn = false;
+                          subtitle = "Sync is disabled";
+                          iconColor = Colors.grey;
+                        } else if (state is ServerStatusChecking) {
+                          isSwitchOn = true;
+                          subtitle = "Connecting to $serviceName...";
+                          iconColor = Colors.orange;
+                          icon = Icons.sync;
+                        } else if (state is ServerStatusOnline) {
+                          isSwitchOn = true;
+                          subtitle = "Connected";
+                          iconColor = Colors.green;
+                          if (serviceName == 'Firebase') {
+                            icon = Icons.local_fire_department_rounded;
+                          } else {
+                            icon = Icons.dns_rounded;
+                          }
+                        } else if (state is ServerStatusOffline) {
+                          // <--- TU JEST PRZYWRÓCONA LOGIKA DLA BRAKU VPN --->
+                          isSwitchOn = true;
+                          subtitle = "Offline (Check Internet/VPN)";
+                          iconColor = Colors.red;
+                          icon = Icons.signal_wifi_off;
+                        } else {
+                          isSwitchOn = true;
+                          subtitle = "Initializing...";
+                        }
+
                         return SwitchListTile(
-                          secondary:
-                              const Icon(Icons.cloud_sync, color: Colors.green),
+                          secondary: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: iconColor.withOpacity(0.1),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(icon, color: iconColor, size: 24),
+                          ),
                           title: Text("$serviceName Sync"),
+                          subtitle: Text(subtitle,
+                              style: TextStyle(
+                                  color: iconColor,
+                                  // Jeśli offline/błąd, pogrubiamy tekst
+                                  fontWeight: (state is ServerStatusOffline)
+                                      ? FontWeight.bold
+                                      : FontWeight.normal,
+                                  fontSize: 12)),
                           value: isSwitchOn,
                           onChanged: (val) =>
                               context.read<ServerStatusCubit>().toggleSync(val),
@@ -186,33 +258,38 @@ class SettingsPage extends StatelessWidget {
                         backgroundImage:
                             photoUrl != null ? NetworkImage(photoUrl) : null,
                         child: photoUrl == null
-                            ? Text(
-                                displayName.isNotEmpty ? displayName[0] : 'U')
+                            ? Text(displayName.isNotEmpty
+                                ? displayName[0].toUpperCase()
+                                : 'U')
                             : null,
                       ),
                       title: Text(displayName,
                           style: const TextStyle(fontWeight: FontWeight.bold)),
                       subtitle: Text(email),
                     ),
-                    const Divider(height: 1),
-                    ListTile(
-                      leading: const Icon(Icons.logout, color: Colors.orange),
-                      title: const Text('Log Out',
-                          style: TextStyle(
-                              color: Colors.orange,
-                              fontWeight: FontWeight.bold)),
-                      onTap: () => _handleLogout(context),
-                    ),
-                    const Divider(height: 1),
-                    ListTile(
-                      leading:
-                          const Icon(Icons.delete_forever, color: Colors.red),
-                      title: const Text('Delete Account',
-                          style: TextStyle(
-                              color: Colors.red, fontWeight: FontWeight.bold)),
-                      subtitle: const Text("Permanently delete data & user"),
-                      onTap: () => _handleDeleteAccount(context),
-                    ),
+                    // Przyciski widoczne tylko jeśli mamy Firebase (Flavor HOME)
+                    if (isFirebase) ...[
+                      const Divider(height: 1),
+                      ListTile(
+                        leading: const Icon(Icons.logout, color: Colors.orange),
+                        title: const Text('Log Out',
+                            style: TextStyle(
+                                color: Colors.orange,
+                                fontWeight: FontWeight.bold)),
+                        onTap: () => _handleLogout(context),
+                      ),
+                      const Divider(height: 1),
+                      ListTile(
+                        leading:
+                            const Icon(Icons.delete_forever, color: Colors.red),
+                        title: const Text('Delete Account',
+                            style: TextStyle(
+                                color: Colors.red,
+                                fontWeight: FontWeight.bold)),
+                        subtitle: const Text("Permanently delete data & user"),
+                        onTap: () => _handleDeleteAccount(context),
+                      ),
+                    ]
                   ],
                 ),
               ),

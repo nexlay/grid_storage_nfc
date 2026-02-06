@@ -264,7 +264,7 @@ class InventoryPage extends StatelessWidget {
                 children: [
                   if (isNetwork)
                     Image.network(
-                      imagePath!,
+                      imagePath,
                       fit: BoxFit.cover,
                       loadingBuilder: (context, child, loadingProgress) {
                         if (loadingProgress == null) return child;
@@ -277,7 +277,7 @@ class InventoryPage extends StatelessWidget {
                     )
                   else
                     Image.file(
-                      File(imagePath!),
+                      File(imagePath),
                       fit: BoxFit.cover,
                       errorBuilder: (ctx, _, __) =>
                           _buildNoPhotoPlaceholder(isError: true),

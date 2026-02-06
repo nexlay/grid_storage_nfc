@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // <--- Dodaj import
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:get_it/get_it.dart';
@@ -29,7 +30,7 @@ final sl = GetIt.instance;
 
 Future<void> init() async {
   // ==========================================================
-  // 1. EXTERNAL & SERVICES (Muszą być pierwsze)
+  // 1. EXTERNAL & SERVICES
   // ==========================================================
 
   // Isar (Baza lokalna)
@@ -46,13 +47,12 @@ Future<void> init() async {
   // 2. LOGIKA WYBORU FLAVORA (HOME vs OFFICE)
   // ==========================================================
 
-  // Sprawdzamy nazwę pakietu
   final packageInfo = await PackageInfo.fromPlatform();
   final packageName = packageInfo.packageName;
 
   print('🚀 Uruchamianie aplikacji. Pakiet: $packageName');
 
-  // --- POPRAWKA: Rozpoznawanie trybu HOME (również dla wersji produkcyjnej) ---
+  // Sprawdzamy czy to wersja HOME (z Firebase)
   final bool isHomeMode = packageName.endsWith('.home') ||
       packageName == 'com.pryhodskyimykola.gridstorage';
 
@@ -62,25 +62,36 @@ Future<void> init() async {
     // ----------------------------------------------------
     print('🏠 Tryb HOME wykryty. Inicjalizacja Firebase...');
 
-    // Inicjalizacja Firebase
-    await Firebase.initializeApp();
+    try {
+      // 1. Inicjalizacja Aplikacji Firebase
+      await Firebase.initializeApp();
 
-    // Rejestracja usług Firebase
-    sl.registerLazySingleton(() => FirebaseFirestore.instance);
-    sl.registerLazySingleton(() => FirebaseStorage.instance);
+      // 2. Rejestracja usług Firebase (Dostępne przez sl<T>())
+      sl.registerLazySingleton(
+          () => FirebaseAuth.instance); // <--- Ważne dla Auth
+      sl.registerLazySingleton(() => FirebaseFirestore.instance);
+      sl.registerLazySingleton(() => FirebaseStorage.instance);
 
-    // Rejestracja DataSource dla Firebase
-    sl.registerLazySingleton<InventoryRemoteDataSource>(
-      () => FirebaseInventoryRemoteDataSource(
-        firestore: sl(),
-        storage: sl(),
-      ),
-    );
+      // 3. Rejestracja DataSource dla Firebase
+      sl.registerLazySingleton<InventoryRemoteDataSource>(
+        () => FirebaseInventoryRemoteDataSource(
+          firestore: sl(),
+          storage: sl(),
+          // auth: sl(), // Opcjonalnie, jeśli wstrzykniesz auth do DataSource
+        ),
+      );
+    } catch (e) {
+      print('🔥 CRITICAL: Błąd inicjalizacji Firebase w trybie HOME: $e');
+      // W razie awarii fallback do QNAP lub pustej implementacji?
+      // Na razie zostawiamy, app pewnie się wysypie przy próbie użycia
+    }
   } else {
     // ----------------------------------------------------
-    // ŚCIEŻKA B: OFFICE (QNAP)
+    // ŚCIEŻKA B: OFFICE (QNAP / OFFLINE)
     // ----------------------------------------------------
-    print('🏢 Tryb OFFICE wykryty. Używanie QNAP API.');
+    print('🏢 Tryb OFFICE wykryty. Pomijam Firebase. Używanie QNAP API.');
+
+    // UWAGA: Nie inicjujemy Firebase. Nie rejestrujemy FirebaseAuth.
 
     // Rejestracja DataSource dla QNAP (HTTP)
     sl.registerLazySingleton<InventoryRemoteDataSource>(
@@ -92,24 +103,19 @@ Future<void> init() async {
   // 3. CORE (Niezależne od Flavora)
   // ==========================================================
 
-  // Network Info
   sl.registerLazySingleton<NetworkInfo>(() => NetworkInfoImpl(sl()));
-
-  // Core Cubits
   sl.registerFactory(() => ThemeCubit());
 
-  // ServerStatusCubit
+  // ServerStatusCubit - Decyduje o nazwie usługi w SettingsPage
   sl.registerFactory(() {
     if (isHomeMode) {
-      // === KONFIGURACJA DLA FIREBASE ===
       return ServerStatusCubit(
         client: sl(),
         syncPendingItems: sl(),
         serviceName: 'Firebase',
-        checkUrl: null,
+        checkUrl: null, // Firebase ma własny status
       );
     } else {
-      // === KONFIGURACJA DLA QNAP ===
       return ServerStatusCubit(
         client: sl(),
         syncPendingItems: sl(),
@@ -122,15 +128,13 @@ Future<void> init() async {
   sl.registerFactory(() => LocalStorageCubit(repository: sl()));
 
   // ==========================================================
-  // 4. DATA LAYER (Repozytoria i Źródła danych)
+  // 4. DATA LAYER
   // ==========================================================
 
-  // Data Sources (Lokalne zawsze to samo)
   sl.registerLazySingleton<InventoryLocalDataSource>(
     () => InventoryLocalDataSourceImpl(sl()),
   );
 
-  // Repositories
   sl.registerLazySingleton<InventoryRepository>(
     () => InventoryRepositoryImpl(
       localDataSource: sl(),
@@ -140,10 +144,9 @@ Future<void> init() async {
   );
 
   // ==========================================================
-  // 5. DOMAIN & PRESENTATION (Use Cases i BloC)
+  // 5. DOMAIN & PRESENTATION
   // ==========================================================
 
-  // Use Cases
   sl.registerLazySingleton(() => GetInventoryList(sl()));
   sl.registerLazySingleton(() => GetInventoryItem(sl()));
   sl.registerLazySingleton(() => SaveInventoryItem(sl()));
@@ -151,7 +154,6 @@ Future<void> init() async {
   sl.registerLazySingleton(() => GetLastUsedItem(sl()));
   sl.registerLazySingleton(() => SyncPendingItems(sl()));
 
-  // Bloc
   sl.registerFactory(
     () => InventoryBloc(
       getInventoryList: sl(),
