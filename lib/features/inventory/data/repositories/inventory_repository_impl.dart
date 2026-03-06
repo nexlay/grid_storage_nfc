@@ -194,4 +194,10 @@ class InventoryRepositoryImpl implements InventoryRepository {
       'unsynced': unsyncedCount,
     };
   }
+
+  @override
+  Future<List<StorageBox>> searchBoxes(String query) async {
+    // Przekazujemy zapytanie prosto do lokalnej bazy (Isar)
+    return await localDataSource.searchBoxes(query);
+  }
 }

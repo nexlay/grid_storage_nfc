@@ -56,6 +56,8 @@ class DeleteBoxRequested extends InventoryEvent {
   List<Object?> get props => [boxId];
 }
 
+
+
 /// Żądanie zapisu (utworzenie nowego lub edycja)
 class WriteTagRequested extends InventoryEvent {
   final int? id; // null = nowy przedmiot

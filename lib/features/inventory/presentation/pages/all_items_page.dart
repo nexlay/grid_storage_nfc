@@ -1,7 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:grid_storage_nfc/features/inventory/domain/entities/storage_box.dart';
 import 'package:grid_storage_nfc/features/inventory/presentation/bloc/inventory_bloc.dart';
 import 'package:grid_storage_nfc/features/inventory/presentation/pages/setup_tag_screen.dart';
 
@@ -13,12 +12,42 @@ class AllItemsPage extends StatefulWidget {
 }
 
 class _AllItemsPageState extends State<AllItemsPage> {
-  // --- NOWOŚĆ: Generator ID ---
+  // Kontroler i zmienna do obsługi trybu wyszukiwania
+  final TextEditingController _searchController = TextEditingController();
+  bool _isSearching = false;
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  // --- LOGIKA WYSZUKIWANIA ---
+  void _startSearch() {
+    setState(() {
+      _isSearching = true;
+    });
+  }
+
+  void _stopSearch() {
+    setState(() {
+      _isSearching = false;
+      _searchController.clear();
+    });
+    // Reset listy do pełnego widoku
+    context.read<InventoryBloc>().add(const LoadAllItems());
+  }
+
+  void _onSearchChanged(String query) {
+    // Wysyłamy event do Bloca
+    // TODO: Implement local search or restore BLoC search
+    // context.read<InventoryBloc>().add(SearchQueryChanged(query));
+  }
+
   String _generateLocalId() {
     return 'LOC-${DateTime.now().millisecondsSinceEpoch}';
   }
 
-  // --- NOWOŚĆ: Dialog Manualny ---
   void _showManualAddDialog(BuildContext context) {
     final nameController = TextEditingController();
     final qtyController = TextEditingController(text: '1');
@@ -96,8 +125,12 @@ class _AllItemsPageState extends State<AllItemsPage> {
                 SnackBar(content: Text('Added "${nameController.text}"')),
               );
 
-              // Odświeżamy listę, żeby od razu zobaczyć nowy element
-              context.read<InventoryBloc>().add(const LoadAllItems());
+              // Czyścimy wyszukiwanie po dodaniu
+              if (_isSearching) {
+                _stopSearch();
+              } else {
+                context.read<InventoryBloc>().add(const LoadAllItems());
+              }
             },
             child: const Text('Save'),
           ),
@@ -106,7 +139,6 @@ class _AllItemsPageState extends State<AllItemsPage> {
     );
   }
 
-  // --- NOWOŚĆ: Menu wyboru (NFC vs Manual) ---
   void _showAddOptions(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -144,7 +176,6 @@ class _AllItemsPageState extends State<AllItemsPage> {
     );
   }
 
-  // --- STARE METODY POMOCNICZE (Bez zmian) ---
   Future<bool?> _showDeleteConfirmationDialog(
       BuildContext context, String itemName) async {
     return showDialog<bool>(
@@ -190,16 +221,6 @@ class _AllItemsPageState extends State<AllItemsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('All Items'),
-        actions: [
-          // Zmodyfikowany przycisk w nagłówku
-          IconButton(
-            icon: const Icon(Icons.add),
-            onPressed: () => _showAddOptions(context),
-          ),
-        ],
-      ),
       body: BlocConsumer<InventoryBloc, InventoryState>(
         listener: (context, state) {
           if (state is InventoryError) {
@@ -219,15 +240,24 @@ class _AllItemsPageState extends State<AllItemsPage> {
             );
           } else if (state is InventoryListLoaded) {
             if (state.boxes.isEmpty) {
-              content = const SliverFillRemaining(
+              content = SliverFillRemaining(
                 child: Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.inbox_outlined, size: 64, color: Colors.grey),
-                      SizedBox(height: 16),
-                      Text('No items in inventory.',
-                          style: TextStyle(fontSize: 18, color: Colors.grey)),
+                      Icon(
+                        _isSearching ? Icons.search_off : Icons.inbox_outlined,
+                        size: 64,
+                        color: Colors.grey,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        _isSearching
+                            ? 'No items found matching "${_searchController.text}"'
+                            : 'No items in inventory.',
+                        style:
+                            const TextStyle(fontSize: 18, color: Colors.grey),
+                      ),
                     ],
                   ),
                 ),
@@ -240,8 +270,6 @@ class _AllItemsPageState extends State<AllItemsPage> {
                     (context, index) {
                       final box = state.boxes[index];
                       final bool isLowStock = box.quantity <= box.threshold;
-
-                      // Sprawdzamy czy to item wirtualny (po prefiksie LOC-)
                       final bool isManual =
                           box.barcode?.startsWith('LOC-') ?? false;
 
@@ -290,26 +318,26 @@ class _AllItemsPageState extends State<AllItemsPage> {
                                 ),
                               );
 
-                              inventoryBloc.add(const LoadAllItems());
+                              // Po powrocie, jeśli szukamy, ponawiamy szukanie,
+                              // a jeśli nie, ładujemy wszystko.
+                                // TODO: Implement local search or restore BLoC search
+                                // inventoryBloc.add(
+                                //     SearchQueryChanged(_searchController.text));
                             },
                             child: Padding(
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 16, vertical: 12),
                               child: Row(
                                 children: [
-                                  // --- AVATAR ROZRÓŻNIAJĄCY NFC I MANUAL ---
                                   CircleAvatar(
                                     backgroundColor: isManual
-                                        ? Colors.orange
-                                            .shade100 // Kolor dla ręcznych
-                                        : _hexToColor(
-                                            box.hexColor), // Kolor dla NFC
+                                        ? Colors.orange.shade100
+                                        : _hexToColor(box.hexColor),
                                     backgroundImage:
                                         _getImageProvider(box.imagePath),
                                     child:
                                         _getImageProvider(box.imagePath) == null
                                             ? Icon(
-                                                // Ikona ołówka dla ręcznych, NFC dla tagów
                                                 isManual
                                                     ? Icons.edit_note
                                                     : Icons.nfc,
@@ -370,7 +398,13 @@ class _AllItemsPageState extends State<AllItemsPage> {
                                         ),
                                       );
 
-                                      inventoryBloc.add(const LoadAllItems());
+                                      // TODO: Implement local search or restore BLoC search
+                                      // if (_isSearching) {
+                                      //   inventoryBloc.add(SearchQueryChanged(
+                                      //       _searchController.text));
+                                      // } else {
+                                      //   inventoryBloc.add(const LoadAllItems());
+                                      // }
                                     },
                                   ),
                                 ],
@@ -396,20 +430,48 @@ class _AllItemsPageState extends State<AllItemsPage> {
 
           return CustomScrollView(
             slivers: [
-              const SliverAppBar.large(
-                title: Text('All Items'),
+              // --- APP BAR Z WYSZUKIWARKĄ ---
+              SliverAppBar.large(
+                title: _isSearching
+                    ? TextField(
+                        controller: _searchController,
+                        autofocus: true,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
+                        decoration: const InputDecoration(
+                          hintText: 'Search items...',
+                          border: InputBorder.none,
+                        ),
+                        onChanged: _onSearchChanged,
+                      )
+                    : const Text('All Items'),
                 centerTitle: false,
+                actions: [
+                  if (_isSearching)
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: _stopSearch,
+                    )
+                  else
+                    IconButton(
+                      icon: const Icon(Icons.search),
+                      onPressed: _startSearch,
+                    ),
+                ],
               ),
               content,
             ],
           );
         },
       ),
-      // --- FAB DLA LISTY WSZYSTKICH PRZEDMIOTÓW ---
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _showAddOptions(context),
-        child: const Icon(Icons.add),
-      ),
+      // --- FAB DLA LISTY WSZYSTKICH PRZEDMIOTÓW (Tylko gdy nie szukamy) ---
+      floatingActionButton: !_isSearching
+          ? FloatingActionButton(
+              onPressed: () => _showAddOptions(context),
+              child: const Icon(Icons.add),
+            )
+          : null,
     );
   }
 }

@@ -8,4 +8,5 @@ abstract class InventoryRepository {
   Future<StorageBox?> getLastUsedBox();
   Future<void> syncPendingItems();
   Future<Map<String, int>> getLocalStats();
+  Future<List<StorageBox>> searchBoxes(String query);
 }

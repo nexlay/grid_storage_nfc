@@ -7,10 +7,11 @@ import 'package:grid_storage_nfc/features/inventory/domain/usecases/get_inventor
 import 'package:grid_storage_nfc/features/inventory/domain/usecases/get_last_used_item.dart';
 import 'package:grid_storage_nfc/features/inventory/domain/usecases/save_inventory_item.dart';
 import 'package:grid_storage_nfc/features/inventory/domain/usecases/delete_inventory_item.dart';
+// <--- NOWY IMPORT
 import 'package:grid_storage_nfc/core/services/nfc_service.dart';
 import 'package:equatable/equatable.dart';
+// import 'package:grid_storage_nfc/features/inventory/domain/usecases/search_inventory_items';
 
-// Importujemy definicje Eventów i Stanów
 part 'inventory_event.dart';
 part 'inventory_state.dart';
 
@@ -20,6 +21,7 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
   final SaveInventoryItem saveInventoryItem;
   final DeleteInventoryItem deleteInventoryItem;
   final GetLastUsedItem getLastUsedItem;
+  // final SearchInventoryItems searchInventoryItems; // <--- NOWE POLE
   final NfcService _nfcService;
   final NotificationService notificationService;
 
@@ -29,6 +31,7 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
     required this.saveInventoryItem,
     required this.deleteInventoryItem,
     required this.getLastUsedItem,
+    // required this.searchInventoryItems, // <--- DODANE DO KONSTRUKTORA
     required NfcService nfcService,
     required this.notificationService,
   })  : _nfcService = nfcService,
@@ -39,10 +42,24 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
     on<DeleteBoxRequested>(_onDeleteBoxRequested);
     on<LoadAllItems>(_onLoadAllItems);
     on<ResetInventory>(_onResetInventory);
-    on<ProcessScannedCode>(_onProcessScannedCode); // Nowe zdarzenie!
+    on<ProcessScannedCode>(_onProcessScannedCode);
+    // on<SearchQueryChanged>(_onSearchQueryChanged);
   }
 
-  // --- 1. NOWE: Przetwarzanie kodu (QR / Manual ID / NFC Payload) ---
+  // --- ZAKTUALIZOWANA METODA WYSZUKIWANIA ---
+  // Future<void> _onSearchQueryChanged(
+  //   SearchQueryChanged event,
+  //   Emitter<InventoryState> emit,
+  // ) async {
+  //   try {
+  //     // Zamiast filtrować w pamięci, delegujemy to do Bazy Danych (Isar)
+  //     final results = await searchInventoryItems(event.query);
+  //     emit(InventoryListLoaded(boxes: results));
+  //   } catch (e) {
+  //     emit(InventoryError('Search failed: ${e.toString()}'));
+  //   }
+  // }
+
   Future<void> _onProcessScannedCode(
     ProcessScannedCode event,
     Emitter<InventoryState> emit,
@@ -51,7 +68,6 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
     try {
       String cleanCode = event.rawCode;
 
-      // Obsługa starego formatu JSON (dla kompatybilności)
       if (cleanCode.trim().startsWith('{')) {
         try {
           final Map<String, dynamic> data = jsonDecode(cleanCode);
@@ -63,12 +79,13 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
 
       print("🔍 Szukam kodu: '$cleanCode'");
 
-      // Pobieramy całą listę, aby znaleźć pasujący barcode lub ID
+      // Do "znajdź jeden" używamy listy w pamięci (dla uproszczenia),
+      // bo Isar getBox wymaga ID int, a tu mamy string/barcode.
+      // Ewentualnie w przyszłości można dodać getBoxByBarcode do repozytorium.
       final allItems = await getInventoryList();
 
       try {
         final box = allItems.firstWhere((b) {
-          // Sprawdzamy czy to ID bazy lub nasz wirtualny Barcode (LOC-...)
           return b.id.toString() == cleanCode || b.barcode == cleanCode;
         });
 
@@ -76,8 +93,7 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
         final isLowStock = box.quantity <= box.threshold;
         emit(InventoryLoaded(box: box, isLowStock: isLowStock));
       } catch (_) {
-        print("❌ Nie znaleziono. Sugeruję utworzenie nowego.");
-        // Przekazujemy kod do stanu błędu, aby UI mogło go użyć do stworzenia nowego itemu
+        print("❌ Nie znaleziono.");
         emit(InventoryError(
           'Item not found for code: $cleanCode',
           scannedCode: cleanCode,
@@ -88,7 +104,6 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
     }
   }
 
-  // --- 2. ZMODYFIKOWANE: Zapisywanie (z obsługą zdjęcia i kodu) ---
   Future<void> _onWriteTagRequested(
     WriteTagRequested event,
     Emitter<InventoryState> emit,
@@ -98,7 +113,6 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
       StorageBox boxToSave;
 
       if (event.id != null) {
-        // EDYCJA
         final existingBox = await getInventoryItem(event.id.toString());
 
         if (existingBox == null) {
@@ -113,11 +127,10 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
           hexColor: event.color,
           lastUsed: DateTime.now(),
           isSynced: false,
-          imagePath: event.imagePath, // Aktualizujemy zdjęcie
-          // barcode: event.barcode, // Opcjonalnie aktualizujemy kod
+          imagePath: event.imagePath,
+          // barcode: event.barcode,
         );
       } else {
-        // NOWY PRZEDMIOT
         boxToSave = StorageBox()
           ..itemName = event.name
           ..quantity = event.quantity
@@ -126,15 +139,13 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
           ..modelPath = 'assets/models/box.glb'
           ..lastUsed = DateTime.now()
           ..isSynced = false
-          ..barcode = event.barcode // Zapisujemy wygenerowany kod (LOC-...)
+          ..barcode = event.barcode
           ..imagePath = event.imagePath;
       }
 
-      // 1. Zapisz w bazie
       final id = await saveInventoryItem(boxToSave);
       boxToSave = boxToSave.copyWith(id: id);
 
-      // 2. Zapisz na tag NFC (tylko jeśli użytkownik wybrał tę opcję)
       if (event.id == null && event.writeToNfc) {
         await _nfcService.writeTag(id.toString());
       }
@@ -147,8 +158,6 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
       emit(InventoryError('Failed to save item: ${e.toString()}'));
     }
   }
-
-  // --- Pozostałe metody bez większych zmian logicznych ---
 
   Future<void> _onScanTagRequested(
     ScanTagRequested event,
@@ -165,7 +174,6 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
       await _nfcService.stopSession();
 
       if (tagPayload != null) {
-        // Używamy nowej metody przetwarzania, aby obsłużyć różne formaty
         add(ProcessScannedCode(tagPayload!));
       } else {
         emit(const InventoryError('Could not read NFC tag.'));

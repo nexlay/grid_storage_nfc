@@ -9,12 +9,14 @@ abstract class InventoryLocalDataSource {
   Future<void> deleteBox(String id);
   Future<StorageBox?> getLastUsedBox();
 
-  // <--- NOWA METODA: Dodana do kontraktu (interfejsu)
+  // --- NOWA METODA: Wyszukiwanie ---
+  Future<List<StorageBox>> searchBoxes(String query);
+
   Future<void> clearAll();
 }
 
 class InventoryLocalDataSourceImpl implements InventoryLocalDataSource {
-  // Isar jest teraz zarządzany tutaj, nie w repozytorium
+  // Isar jest teraz zarządzany tutaj, nie w repozytorium (Twój oryginalny kod)
   static Future<Isar> init() async {
     final dir = await getApplicationDocumentsDirectory();
     return Isar.open(
@@ -46,7 +48,6 @@ class InventoryLocalDataSourceImpl implements InventoryLocalDataSource {
   @override
   Future<StorageBox?> getBox(String id) async {
     // Uwaga: zakładamy, że id to String parsujący się na int (dla Isar)
-    // Jeśli id jest GUID-em, logika musiałaby być inna, ale trzymam się Twojego kodu.
     return await isar.storageBoxs.get(int.parse(id));
   }
 
@@ -64,7 +65,22 @@ class InventoryLocalDataSourceImpl implements InventoryLocalDataSource {
     });
   }
 
-  // <--- NOWA METODA: Implementacja czyszczenia bazy
+  // --- IMPLEMENTACJA WYSZUKIWANIA (NOWE) ---
+  @override
+  Future<List<StorageBox>> searchBoxes(String query) async {
+    if (query.isEmpty) {
+      return getAllBoxes();
+    }
+
+    // Wyszukiwanie Case-Insensitive w polach itemName LUB barcode
+    return await isar.storageBoxs
+        .filter()
+        .itemNameContains(query, caseSensitive: false)
+        .or()
+        .barcodeContains(query, caseSensitive: false)
+        .findAll();
+  }
+
   @override
   Future<void> clearAll() async {
     await isar.writeTxn(() async {
