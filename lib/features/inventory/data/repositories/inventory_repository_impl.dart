@@ -26,24 +26,25 @@ class InventoryRepositoryImpl implements InventoryRepository {
 
   @override
   Future<List<StorageBox>> getAllBoxes() async {
-    // 1. Pobierz dane z telefonu (Isar)
     var localBoxes = await localDataSource.getAllBoxes();
 
-    // 2. Jeśli telefon jest pusty, mamy internet ORAZ włączoną synchronizację
     if (localBoxes.isEmpty &&
         await networkInfo.isConnected &&
         await _isSyncEnabled()) {
-      // <-- ZMIANA
       try {
         final remoteBoxes = await remoteDataSource.getAllBoxes();
-        for (var box in remoteBoxes) {
-          // Zapisz pobrane z serwera pudełka do lokalnej bazy
-          await localDataSource.saveBox(box);
+
+        final checkAgain = await localDataSource.getAllBoxes();
+
+        if (checkAgain.isEmpty) {
+          for (var box in remoteBoxes) {
+            box.isSynced = true;
+            await localDataSource.saveBox(box);
+          }
         }
-        // Odśwież listę lokalną
+
         localBoxes = await localDataSource.getAllBoxes();
       } catch (e) {
-        // Ignorujemy błąd pobierania, zwracamy pustą listę
         print('Błąd pobierania wstępnego: $e');
       }
     }

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:grid_storage_nfc/features/inventory/presentation/bloc/inventory_bloc.dart';
 import 'package:grid_storage_nfc/features/inventory/presentation/pages/setup_tag_screen.dart';
+import 'package:grid_storage_nfc/features/inventory/presentation/bloc/auth/auth_bloc.dart';
 
 class AllItemsPage extends StatefulWidget {
   const AllItemsPage({super.key});
@@ -12,7 +13,6 @@ class AllItemsPage extends StatefulWidget {
 }
 
 class _AllItemsPageState extends State<AllItemsPage> {
-  // Kontroler i zmienna do obsługi trybu wyszukiwania
   final TextEditingController _searchController = TextEditingController();
   bool _isSearching = false;
 
@@ -22,7 +22,6 @@ class _AllItemsPageState extends State<AllItemsPage> {
     super.dispose();
   }
 
-  // --- LOGIKA WYSZUKIWANIA ---
   void _startSearch() {
     setState(() {
       _isSearching = true;
@@ -34,18 +33,61 @@ class _AllItemsPageState extends State<AllItemsPage> {
       _isSearching = false;
       _searchController.clear();
     });
-    // Reset listy do pełnego widoku
     context.read<InventoryBloc>().add(const LoadAllItems());
   }
 
   void _onSearchChanged(String query) {
-    // Wysyłamy event do Bloca
-    // TODO: Implement local search or restore BLoC search
-    // context.read<InventoryBloc>().add(SearchQueryChanged(query));
+    // Implement search logic if needed
   }
 
   String _generateLocalId() {
     return 'LOC-${DateTime.now().millisecondsSinceEpoch}';
+  }
+
+  // --- NEW: TOTAL COUNT WIDGET ---
+  Widget _buildOverviewCard(int itemsCount, int totalQuantity) {
+    return SliverToBoxAdapter(
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color:
+              Theme.of(context).colorScheme.primaryContainer.withOpacity(0.4),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: Theme.of(context).colorScheme.primary.withOpacity(0.2),
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.analytics_outlined,
+                color: Theme.of(context).colorScheme.primary, size: 32),
+            const SizedBox(width: 16),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Inventory Overview',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Total items: $itemsCount',
+                  style: const TextStyle(
+                      fontSize: 15, fontWeight: FontWeight.w500),
+                ),
+                Text(
+                  'Total quantity: $totalQuantity units',
+                  style: TextStyle(
+                      fontSize: 13,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _showManualAddDialog(BuildContext context) {
@@ -107,25 +149,19 @@ class _AllItemsPageState extends State<AllItemsPage> {
           FilledButton(
             onPressed: () {
               if (nameController.text.isEmpty) return;
-
               final generatedId = _generateLocalId();
-
               context.read<InventoryBloc>().add(WriteTagRequested(
                     name: nameController.text,
                     quantity: int.tryParse(qtyController.text) ?? 1,
                     threshold: int.tryParse(thresholdController.text) ?? 0,
-                    color: '#9E9E9E', // Szary dla manualnych
-                    writeToNfc: false, // Brak zapisu NFC
-                    barcode: generatedId, // Kod wirtualny
+                    color: '#9E9E9E',
+                    writeToNfc: false,
+                    barcode: generatedId,
                   ));
-
               Navigator.pop(ctx);
-
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(content: Text('Added "${nameController.text}"')),
               );
-
-              // Czyścimy wyszukiwanie po dodaniu
               if (_isSearching) {
                 _stopSearch();
               } else {
@@ -220,6 +256,9 @@ class _AllItemsPageState extends State<AllItemsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final authState = context.watch<AuthBloc>().state;
+    final isAdmin = authState is Authenticated && authState.role == 'admin';
+
     return Scaffold(
       body: BlocConsumer<InventoryBloc, InventoryState>(
         listener: (context, state) {
@@ -232,15 +271,55 @@ class _AllItemsPageState extends State<AllItemsPage> {
           }
         },
         builder: (context, state) {
-          Widget content;
+          List<Widget> slivers = [];
+
+          // 1. AppBar
+          slivers.add(
+            SliverAppBar.large(
+              title: _isSearching
+                  ? TextField(
+                      controller: _searchController,
+                      autofocus: true,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
+                      decoration: const InputDecoration(
+                        hintText: 'Search items...',
+                        border: InputBorder.none,
+                      ),
+                      onChanged: _onSearchChanged,
+                    )
+                  : const Text('All Items'),
+              centerTitle: false,
+              actions: [
+                if (_isSearching)
+                  IconButton(
+                      icon: const Icon(Icons.close), onPressed: _stopSearch)
+                else
+                  IconButton(
+                      icon: const Icon(Icons.search), onPressed: _startSearch),
+              ],
+            ),
+          );
 
           if (state is InventoryLoading) {
-            content = const SliverFillRemaining(
+            slivers.add(const SliverFillRemaining(
               child: Center(child: CircularProgressIndicator()),
-            );
+            ));
           } else if (state is InventoryListLoaded) {
+            // Calculate Stats
+            final int itemsCount = state.boxes.length;
+            final int totalQty =
+                state.boxes.fold(0, (sum, item) => sum + item.quantity);
+
+            // 2. Overview Card (ONLY IF NOT EMPTY)
+            if (state.boxes.isNotEmpty && !_isSearching) {
+              slivers.add(_buildOverviewCard(itemsCount, totalQty));
+            }
+
+            // 3. Content
             if (state.boxes.isEmpty) {
-              content = SliverFillRemaining(
+              slivers.add(SliverFillRemaining(
                 child: Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
@@ -261,212 +340,159 @@ class _AllItemsPageState extends State<AllItemsPage> {
                     ],
                   ),
                 ),
-              );
+              ));
             } else {
-              content = SliverPadding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-                sliver: SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) {
-                      final box = state.boxes[index];
-                      final bool isLowStock = box.quantity <= box.threshold;
-                      final bool isManual =
-                          box.barcode?.startsWith('LOC-') ?? false;
+              slivers.add(
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
+                  sliver: SliverList(
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) {
+                        final box = state.boxes[index];
+                        final bool isLowStock = box.quantity <= box.threshold;
+                        final bool isManual =
+                            box.barcode?.startsWith('LOC-') ?? false;
 
-                      return Dismissible(
-                        key: ValueKey(box.id),
-                        direction: DismissDirection.endToStart,
-                        confirmDismiss: (direction) async {
-                          return await _showDeleteConfirmationDialog(
-                              context, box.itemName);
-                        },
-                        onDismissed: (direction) {
-                          context.read<InventoryBloc>().add(
-                              DeleteBoxRequested(boxId: box.id.toString()));
-                        },
-                        background: Container(
-                          color: Colors.red.shade100,
-                          alignment: Alignment.centerRight,
-                          padding: const EdgeInsets.symmetric(horizontal: 20),
-                          child: Icon(Icons.delete_outline,
-                              color: Colors.red.shade900),
-                        ),
-                        child: Card(
-                          margin: const EdgeInsets.only(bottom: 12),
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            side: isLowStock
-                                ? BorderSide(
-                                    color: Colors.red.withOpacity(0.6),
-                                    width: 1.5)
-                                : BorderSide(
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .outlineVariant),
+                        return Dismissible(
+                          key: ValueKey(box.id),
+                          direction: isAdmin
+                              ? DismissDirection.endToStart
+                              : DismissDirection.none,
+                          confirmDismiss: (direction) async {
+                            return await _showDeleteConfirmationDialog(
+                                context, box.itemName);
+                          },
+                          onDismissed: (direction) {
+                            context.read<InventoryBloc>().add(
+                                DeleteBoxRequested(boxId: box.id.toString()));
+                          },
+                          background: Container(
+                            color: Colors.red.shade100,
+                            alignment: Alignment.centerRight,
+                            padding: const EdgeInsets.symmetric(horizontal: 20),
+                            child: Icon(Icons.delete_outline,
+                                color: Colors.red.shade900),
                           ),
-                          child: InkWell(
-                            borderRadius: BorderRadius.circular(12),
-                            onTap: () async {
-                              final inventoryBloc =
-                                  context.read<InventoryBloc>();
-
-                              await Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) =>
-                                      SetupTagScreen(boxToEdit: box),
-                                ),
-                              );
-
-                              // Po powrocie, jeśli szukamy, ponawiamy szukanie,
-                              // a jeśli nie, ładujemy wszystko.
-                                // TODO: Implement local search or restore BLoC search
-                                // inventoryBloc.add(
-                                //     SearchQueryChanged(_searchController.text));
-                            },
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 16, vertical: 12),
-                              child: Row(
-                                children: [
-                                  CircleAvatar(
-                                    backgroundColor: isManual
-                                        ? Colors.orange.shade100
-                                        : _hexToColor(box.hexColor),
-                                    backgroundImage:
-                                        _getImageProvider(box.imagePath),
-                                    child:
-                                        _getImageProvider(box.imagePath) == null
-                                            ? Icon(
-                                                isManual
-                                                    ? Icons.edit_note
-                                                    : Icons.nfc,
-                                                color: isManual
-                                                    ? Colors.orange.shade900
-                                                    : Colors.white,
-                                              )
-                                            : null,
+                          child: Card(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              side: isLowStock
+                                  ? BorderSide(
+                                      color: Colors.red.withOpacity(0.6),
+                                      width: 1.5)
+                                  : BorderSide(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .outlineVariant),
+                            ),
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(12),
+                              onTap: () async {
+                                await Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (_) =>
+                                        SetupTagScreen(boxToEdit: box),
                                   ),
-                                  const SizedBox(width: 16),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          box.itemName,
-                                          style: const TextStyle(
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.w600),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Row(
-                                          children: [
-                                            Text(
-                                              'Quantity: ${box.quantity}',
-                                              style: TextStyle(
-                                                color: isLowStock
-                                                    ? Colors.red
-                                                    : Colors.grey[600],
-                                                fontWeight: isLowStock
-                                                    ? FontWeight.bold
-                                                    : FontWeight.normal,
-                                              ),
-                                            ),
-                                            if (isLowStock) ...[
-                                              const SizedBox(width: 8),
-                                              const Icon(
-                                                  Icons.warning_amber_rounded,
-                                                  color: Colors.red,
-                                                  size: 18),
-                                            ]
-                                          ],
-                                        ),
-                                      ],
+                                );
+                              },
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 16, vertical: 12),
+                                child: Row(
+                                  children: [
+                                    CircleAvatar(
+                                      backgroundColor: isManual
+                                          ? Colors.orange.shade100
+                                          : _hexToColor(box.hexColor),
+                                      backgroundImage:
+                                          _getImageProvider(box.imagePath),
+                                      child: _getImageProvider(box.imagePath) ==
+                                              null
+                                          ? Icon(
+                                              isManual
+                                                  ? Icons.edit_note
+                                                  : Icons.nfc,
+                                              color: isManual
+                                                  ? Colors.orange.shade900
+                                                  : Colors.white,
+                                            )
+                                          : null,
                                     ),
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(Icons.edit_outlined),
-                                    onPressed: () async {
-                                      final inventoryBloc =
-                                          context.read<InventoryBloc>();
-
-                                      await Navigator.of(context).push(
-                                        MaterialPageRoute(
-                                          builder: (_) =>
-                                              SetupTagScreen(boxToEdit: box),
-                                        ),
-                                      );
-
-                                      // TODO: Implement local search or restore BLoC search
-                                      // if (_isSearching) {
-                                      //   inventoryBloc.add(SearchQueryChanged(
-                                      //       _searchController.text));
-                                      // } else {
-                                      //   inventoryBloc.add(const LoadAllItems());
-                                      // }
-                                    },
-                                  ),
-                                ],
+                                    const SizedBox(width: 16),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            box.itemName,
+                                            style: const TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.w600),
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Row(
+                                            children: [
+                                              Text(
+                                                'Quantity: ${box.quantity}',
+                                                style: TextStyle(
+                                                  color: isLowStock
+                                                      ? Colors.red
+                                                      : Colors.grey[600],
+                                                  fontWeight: isLowStock
+                                                      ? FontWeight.bold
+                                                      : FontWeight.normal,
+                                                ),
+                                              ),
+                                              if (isLowStock) ...[
+                                                const SizedBox(width: 8),
+                                                const Icon(
+                                                    Icons.warning_amber_rounded,
+                                                    color: Colors.red,
+                                                    size: 18),
+                                              ]
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    if (isAdmin)
+                                      IconButton(
+                                        icon: const Icon(Icons.edit_outlined),
+                                        onPressed: () async {
+                                          await Navigator.of(context).push(
+                                            MaterialPageRoute(
+                                              builder: (_) => SetupTagScreen(
+                                                  boxToEdit: box),
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                  ],
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                      );
-                    },
-                    childCount: state.boxes.length,
+                        );
+                      },
+                      childCount: state.boxes.length,
+                    ),
                   ),
                 ),
               );
             }
-          } else if (state is InventoryError) {
-            content = SliverFillRemaining(
-                child: Center(
-                    child: Text('Error loading data: ${state.message}')));
           } else {
-            content = const SliverFillRemaining(
-                child: Center(child: CircularProgressIndicator()));
+            slivers.add(const SliverFillRemaining(
+              child: Center(child: CircularProgressIndicator()),
+            ));
           }
 
-          return CustomScrollView(
-            slivers: [
-              // --- APP BAR Z WYSZUKIWARKĄ ---
-              SliverAppBar.large(
-                title: _isSearching
-                    ? TextField(
-                        controller: _searchController,
-                        autofocus: true,
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.onSurface,
-                        ),
-                        decoration: const InputDecoration(
-                          hintText: 'Search items...',
-                          border: InputBorder.none,
-                        ),
-                        onChanged: _onSearchChanged,
-                      )
-                    : const Text('All Items'),
-                centerTitle: false,
-                actions: [
-                  if (_isSearching)
-                    IconButton(
-                      icon: const Icon(Icons.close),
-                      onPressed: _stopSearch,
-                    )
-                  else
-                    IconButton(
-                      icon: const Icon(Icons.search),
-                      onPressed: _startSearch,
-                    ),
-                ],
-              ),
-              content,
-            ],
-          );
+          return CustomScrollView(slivers: slivers);
         },
       ),
-      // --- FAB DLA LISTY WSZYSTKICH PRZEDMIOTÓW (Tylko gdy nie szukamy) ---
-      floatingActionButton: !_isSearching
+      floatingActionButton: (!_isSearching && isAdmin)
           ? FloatingActionButton(
               onPressed: () => _showAddOptions(context),
               child: const Icon(Icons.add),

@@ -87,11 +87,14 @@ class ServerStatusCubit extends Cubit<ServerStatusState> {
       if (checkUrl != null) {
         // --- TRYB QNAP (Ping URL) ---
         try {
+          // ZMIANA: Zwiększony timeout do 10 sekund ze względu na połączenia VPN!
           final response = await client.get(Uri.parse(checkUrl!)).timeout(
-                const Duration(seconds: 3),
+                const Duration(seconds: 10),
               );
-          // 200-299 uznajemy za sukces
-          if (response.statusCode >= 200 && response.statusCode < 300) {
+
+          // 200-299 is success. 401 means server is alive but requires auth
+          if ((response.statusCode >= 200 && response.statusCode < 300) ||
+              response.statusCode == 401) {
             isConnected = true;
           }
         } catch (_) {

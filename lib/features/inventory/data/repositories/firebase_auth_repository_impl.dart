@@ -17,11 +17,6 @@ class FirebaseAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<void> deleteAccount() async {
-    await _authService.deleteUserAccount();
-  }
-
-  @override
   Future<bool> isLoggedIn() async {
     return _authService.currentUser != null;
   }
@@ -29,8 +24,14 @@ class FirebaseAuthRepository implements AuthRepository {
   @override
   Future<String?> getUserRole() async {
     if (_authService.currentUser != null) {
-      return 'web_admin';
+      return 'admin';
     }
     return null;
+  }
+
+  @override
+  Future<void> requestPasswordChange(String email) async {
+    throw Exception(
+        'Password change is not available when signing in with Google.');
   }
 }

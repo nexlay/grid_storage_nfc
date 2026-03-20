@@ -1,20 +1,26 @@
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_core/firebase_core.dart'; // <--- Dodaj ten import
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+
+// --- IMPORTS BLOC/CUBIT ---
+import 'package:grid_storage_nfc/features/inventory/presentation/bloc/inventory_bloc.dart';
+import 'package:grid_storage_nfc/features/inventory/presentation/bloc/auth/auth_bloc.dart';
 import 'package:grid_storage_nfc/core/local_storage/local_storage_cubit.dart';
-import 'package:grid_storage_nfc/core/notifications/notification_service.dart';
 import 'package:grid_storage_nfc/core/server_status/server_status_cubit.dart';
 import 'package:grid_storage_nfc/core/theme/theme_cubit.dart';
-import 'package:grid_storage_nfc/features/inventory/presentation/bloc/inventory_bloc.dart';
-import 'package:grid_storage_nfc/features/inventory/presentation/pages/login_page.dart';
+
+// --- IMPORTS PAGES ---
 import 'package:grid_storage_nfc/features/inventory/presentation/pages/main_page.dart';
-import 'package:grid_storage_nfc/injection_container.dart' as di;
+import 'package:grid_storage_nfc/features/inventory/presentation/pages/login_page.dart';
+
+// --- IMPORT DI ---
+import 'injection_container.dart' as di;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Inicjalizacja zależności (Firebase, Isar, API, itp.)
   await di.init();
-  await di.sl<NotificationService>().init();
+
   runApp(const MyApp());
 }
 
@@ -23,61 +29,67 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 1. Sprawdzamy bezpiecznie, czy Firebase jest gotowy
-    final serverCubit = di.sl<ServerStatusCubit>();
-    bool useFirebase = false;
-
-    try {
-      // Jeśli w injection_container.dart zainicjowaliśmy Firebase, to lista apps nie będzie pusta
-      useFirebase =
-          Firebase.apps.isNotEmpty && serverCubit.serviceName == 'Firebase';
-    } catch (_) {
-      useFirebase = false;
-    }
-
+    // Rejestrujemy wszystkie Bloc i Cubity na najwyższym poziomie aplikacji
     return MultiBlocProvider(
       providers: [
-        BlocProvider(
-          create: (_) => di.sl<InventoryBloc>()..add(const ResetInventory()),
+        BlocProvider<AuthBloc>(
+          create: (_) => di.sl<AuthBloc>()..add(AuthCheckRequested()),
         ),
-        BlocProvider(create: (_) => di.sl<ThemeCubit>()),
-        BlocProvider(create: (_) => serverCubit),
-        BlocProvider(create: (_) => di.sl<LocalStorageCubit>()..loadStats()),
+        BlocProvider<InventoryBloc>(
+          create: (_) => di.sl<InventoryBloc>(),
+        ),
+        // --- BRAKUJĄCE CUBITY DODANE TUTAJ ---
+        BlocProvider<LocalStorageCubit>(
+          create: (_) => di.sl<LocalStorageCubit>()
+            ..loadStats(), // od razu ładujemy statystyki
+        ),
+        BlocProvider<ServerStatusCubit>(
+          create: (_) => di.sl<ServerStatusCubit>(),
+        ),
+        BlocProvider<ThemeCubit>(
+          create: (_) => di.sl<ThemeCubit>(),
+        ),
       ],
-      child: BlocBuilder<ThemeCubit, ThemeMode>(
-        builder: (context, themeMode) {
-          return MaterialApp(
-            title: 'Grid Storage NFC',
-            themeMode: themeMode,
-            theme:
-                ThemeData(useMaterial3: true, colorSchemeSeed: Colors.blueGrey),
-            darkTheme: ThemeData(
-                useMaterial3: true,
-                colorSchemeSeed: Colors.blueGrey,
-                brightness: Brightness.dark),
-
-            // 2. Warunek: Jeśli nie ma Firebase, idź prosto do MainPage
-            home: useFirebase ? const AuthGate() : const MainPage(),
-          );
-        },
-      ),
+      // BlocBuilder dla motywu (jasny/ciemny)
+      child: BlocBuilder<ThemeCubit, ThemeMode>(builder: (context, themeMode) {
+        return MaterialApp(
+          title: 'Grid Storage',
+          themeMode: themeMode,
+          theme: ThemeData(
+            colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
+            useMaterial3: true,
+          ),
+          darkTheme: ThemeData.dark(useMaterial3: true).copyWith(
+            colorScheme: ColorScheme.fromSeed(
+                seedColor: Colors.blue, brightness: Brightness.dark),
+          ),
+          home: const AuthWrapper(),
+        );
+      }),
     );
   }
 }
 
-class AuthGate extends StatelessWidget {
-  const AuthGate({super.key});
+// Widget decydujący, czy pokazać LoginPage czy aplikację
+class AuthWrapper extends StatelessWidget {
+  const AuthWrapper({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<User?>(
-      stream: FirebaseAuth.instance.authStateChanges(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-              body: Center(child: CircularProgressIndicator()));
+    return BlocBuilder<AuthBloc, AuthState>(
+      builder: (context, state) {
+        if (state is Authenticated) {
+          // Zalogowany -> idziemy do głównego ekranu z nawigacją
+          return const MainPage();
+        } else if (state is Unauthenticated || state is AuthError) {
+          // Niezalogowany lub błąd -> Ekran logowania
+          return const LoginPage();
         }
-        return snapshot.hasData ? const MainPage() : const LoginPage();
+
+        // Ładowanie
+        return const Scaffold(
+          body: Center(child: CircularProgressIndicator()),
+        );
       },
     );
   }

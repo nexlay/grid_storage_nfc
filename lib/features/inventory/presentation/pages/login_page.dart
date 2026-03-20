@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:grid_storage_nfc/features/inventory/presentation/bloc/auth/auth_bloc.dart';
-import 'package:grid_storage_nfc/features/inventory/presentation/pages/all_items_page.dart';
+import 'package:grid_storage_nfc/features/inventory/presentation/pages/main_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -12,12 +12,10 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  // Kontrolery tylko dla trybu Office (Email/Hasło)
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
 
-  // Flaga trybu
   bool _isHomeMode = false;
   bool _isLoadingFlavor = true;
 
@@ -27,7 +25,6 @@ class _LoginPageState extends State<LoginPage> {
     _checkFlavor();
   }
 
-  // Sprawdzamy wersję aplikacji (Home vs Office)
   Future<void> _checkFlavor() async {
     final packageInfo = await PackageInfo.fromPlatform();
     final packageName = packageInfo.packageName;
@@ -50,12 +47,10 @@ class _LoginPageState extends State<LoginPage> {
 
   void _onLoginPressed() {
     if (_isHomeMode) {
-      // HOME: Logowanie Google (bez parametrów)
       context.read<AuthBloc>().add(const LoginRequested());
     } else {
-      // OFFICE: Logowanie Email/Hasło
       if (_formKey.currentState!.validate()) {
-        FocusScope.of(context).unfocus(); // Schowaj klawiaturę
+        FocusScope.of(context).unfocus();
         context.read<AuthBloc>().add(
               LoginRequested(
                 email: _emailController.text.trim(),
@@ -66,29 +61,44 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
+  void _onPasswordResetPressed() {
+    final email = _emailController.text.trim();
+    if (email.isEmpty || !email.contains('@')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content:
+              Text("Enter a valid email address to request a password reset."),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    context.read<AuthBloc>().add(PasswordChangeRequested(email));
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: BlocConsumer<AuthBloc, AuthState>(
         listener: (context, state) {
           if (state is Authenticated) {
-            // SUKCES: Przechodzimy do głównej listy
             Navigator.of(context).pushReplacement(
-              MaterialPageRoute(builder: (_) => const AllItemsPage()),
+              MaterialPageRoute(builder: (_) => const MainPage()),
             );
           } else if (state is AuthError) {
-            // BŁĄD: Pokazujemy pasek na dole
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text(state.message),
-                backgroundColor: Colors.red,
-                behavior: SnackBarBehavior.floating,
-              ),
+                  content: Text(state.message), backgroundColor: Colors.red),
+            );
+          } else if (state is PasswordChangeSuccess) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                  content: Text(state.message), backgroundColor: Colors.green),
             );
           }
         },
         builder: (context, state) {
-          // 1. Ładowanie (sprawdzanie wersji lub logowanie)
           if (_isLoadingFlavor || state is AuthLoading) {
             return const Center(child: CircularProgressIndicator());
           }
@@ -102,7 +112,6 @@ class _LoginPageState extends State<LoginPage> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // --- NAGŁÓWEK (Wspólny) ---
                     Icon(_isHomeMode ? Icons.home_filled : Icons.business,
                         size: 80,
                         color: _isHomeMode ? Colors.orange : Colors.blue),
@@ -116,26 +125,22 @@ class _LoginPageState extends State<LoginPage> {
                     const SizedBox(height: 8),
                     Text(
                       _isHomeMode
-                          ? "Zaloguj się przez Google"
-                          : "Zaloguj się do serwera QNAP",
+                          ? "Sign in with your Google account"
+                          : "Sign in to corporate QNAP server",
                       textAlign: TextAlign.center,
                       style: const TextStyle(color: Colors.grey),
                     ),
                     const SizedBox(height: 40),
-
-                    // --- FORMULARZ (Zależny od trybu) ---
                     if (_isHomeMode) ...[
-                      // WIDOK DLA HOME (Tylko przycisk Google)
                       ElevatedButton.icon(
                         onPressed: _onLoginPressed,
                         icon: const Icon(Icons.login),
-                        label: const Text("Zaloguj przez Google"),
+                        label: const Text("Sign in with Google"),
                         style: ElevatedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 16),
                         ),
                       ),
                     ] else ...[
-                      // WIDOK DLA OFFICE (Pola tekstowe)
                       TextFormField(
                         controller: _emailController,
                         decoration: const InputDecoration(
@@ -144,18 +149,20 @@ class _LoginPageState extends State<LoginPage> {
                           border: OutlineInputBorder(),
                         ),
                         keyboardType: TextInputType.emailAddress,
-                        validator: (v) => v!.isEmpty ? 'Podaj email' : null,
+                        validator: (v) =>
+                            v!.isEmpty ? 'Please enter email' : null,
                       ),
                       const SizedBox(height: 16),
                       TextFormField(
                         controller: _passwordController,
                         decoration: const InputDecoration(
-                          labelText: 'Hasło',
+                          labelText: 'Password',
                           prefixIcon: Icon(Icons.lock_outline),
                           border: OutlineInputBorder(),
                         ),
                         obscureText: true,
-                        validator: (v) => v!.isEmpty ? 'Podaj hasło' : null,
+                        validator: (v) =>
+                            v!.isEmpty ? 'Please enter password' : null,
                       ),
                       const SizedBox(height: 24),
                       FilledButton(
@@ -163,8 +170,14 @@ class _LoginPageState extends State<LoginPage> {
                         style: FilledButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 16),
                         ),
-                        child: const Text("Zaloguj się"),
+                        child: const Text("Sign In"),
                       ),
+                      const SizedBox(height: 16),
+                      TextButton(
+                        onPressed: _onPasswordResetPressed,
+                        child: const Text(
+                            "Forgot password? Request reset from admin"),
+                      )
                     ],
                   ],
                 ),

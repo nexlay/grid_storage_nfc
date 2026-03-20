@@ -1,18 +1,22 @@
 import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:grid_storage_nfc/features/inventory/domain/repositories/auth_repository.dart';
 import 'package:http/http.dart' as http;
 import 'package:jwt_decoder/jwt_decoder.dart';
+import 'package:grid_storage_nfc/features/inventory/domain/repositories/auth_repository.dart';
 
 class QnapAuthRepository implements AuthRepository {
   final http.Client client;
   final FlutterSecureStorage storage;
-  final String baseUrl = 'http://192.168.1.40:3000'; // IP Twojego QNAP
+  final String baseUrl = 'http://192.168.1.40:3000';
 
   QnapAuthRepository({required this.client, required this.storage});
 
   @override
   Future<void> login({String? email, String? password}) async {
+    if (email == null || password == null) {
+      throw Exception('Email and password are required.');
+    }
+
     try {
       final response = await client.post(
         Uri.parse('$baseUrl/rpc/login'),
@@ -21,16 +25,15 @@ class QnapAuthRepository implements AuthRepository {
       );
 
       if (response.statusCode == 200) {
-        // Logika wyciągania tokena (taka sama jak ustaliliśmy wcześniej)
         String token = "";
         final dynamic decoded = jsonDecode(response.body);
 
-        if (decoded is List && decoded.isNotEmpty) {
+        if (decoded is String) {
+          token = decoded;
+        } else if (decoded is List && decoded.isNotEmpty) {
           token = decoded[0]['token'];
         } else if (decoded is Map && decoded.containsKey('token')) {
           token = decoded['token'];
-        } else if (decoded is String) {
-          token = decoded;
         }
 
         if (token.isNotEmpty) {
@@ -38,9 +41,9 @@ class QnapAuthRepository implements AuthRepository {
           return;
         }
       }
-      throw Exception('Błąd logowania QNAP: ${response.statusCode}');
+      throw Exception('Invalid email or password.');
     } catch (e) {
-      throw Exception('Błąd połączenia z QNAP: $e');
+      throw Exception('Server connection error: $e');
     }
   }
 
@@ -60,12 +63,32 @@ class QnapAuthRepository implements AuthRepository {
   Future<String?> getUserRole() async {
     final token = await storage.read(key: 'jwt_token');
     if (token == null) return null;
-    final decoded = JwtDecoder.decode(token);
-    return decoded['role']; // 'web_admin' lub 'web_user'
+
+    try {
+      final decoded = JwtDecoder.decode(token);
+      return decoded['role'];
+    } catch (e) {
+      return 'user';
+    }
   }
 
   @override
-  Future<void> deleteAccount() {
-    throw UnimplementedError();
+  Future<void> requestPasswordChange(String email) async {
+    try {
+      final response = await client.post(
+        Uri.parse('$baseUrl/password_reset_requests'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'email': email,
+          'status': 'pending',
+        }),
+      );
+
+      if (response.statusCode != 201 && response.statusCode != 200) {
+        throw Exception('Failed to send request to the server.');
+      }
+    } catch (e) {
+      throw Exception('Network error: $e');
+    }
   }
 }

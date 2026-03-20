@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -10,18 +11,19 @@ import 'package:grid_storage_nfc/features/inventory/presentation/bloc/inventory_
 import 'package:grid_storage_nfc/features/inventory/presentation/widgets/theme_selector_card.dart';
 import 'package:grid_storage_nfc/features/inventory/presentation/widgets/about_card.dart';
 import 'package:grid_storage_nfc/injection_container.dart' as di;
+import 'package:grid_storage_nfc/features/inventory/presentation/bloc/auth/auth_bloc.dart';
 
 class SettingsPage extends StatelessWidget {
   const SettingsPage({super.key});
 
-  // --- LOGIKA WYLOGOWANIA ---
+  // --- LOGOUT LOGIC ---
   Future<void> _handleLogout(BuildContext context) async {
     final shouldLogout = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Log Out'),
         content: const Text(
-            'Are you sure you want to log out?\nThis will clear local data.'),
+            'Are you sure you want to log out?\nLocal data will be cleared.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -40,27 +42,25 @@ class SettingsPage extends StatelessWidget {
       try {
         await di.sl<InventoryLocalDataSource>().clearAll();
       } catch (e) {
-        debugPrint("Błąd czyszczenia bazy: $e");
+        debugPrint("Database clear error: $e");
       }
 
       if (context.mounted) {
         context.read<InventoryBloc>().add(const ResetInventory());
-        try {
-          if (Firebase.apps.isNotEmpty) await AuthService().signOut();
-        } catch (_) {}
+        context.read<AuthBloc>().add(LogoutRequested());
       }
     }
   }
 
-  // --- LOGIKA USUWANIA KONTA ---
+  // --- DELETE ACCOUNT LOGIC (Only for HOME/Firebase) ---
   Future<void> _handleDeleteAccount(BuildContext context) async {
     final shouldDelete = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('DELETE ACCOUNT'),
         content: const Text(
-            'Warning: This action cannot be undone.\n\n'
-            'We will ask you to confirm your Google Account one last time before deletion.',
+            'Warning: This action is irreversible.\n\n'
+            'You will be asked to confirm your Google account before deletion.',
             style: TextStyle(color: Colors.red)),
         actions: [
           TextButton(
@@ -89,6 +89,9 @@ class SettingsPage extends StatelessWidget {
           context.read<InventoryBloc>().add(const ResetInventory());
         }
         await AuthService().deleteUserAccount();
+        if (context.mounted) {
+          context.read<AuthBloc>().add(LogoutRequested());
+        }
         navigator.pop();
       } catch (e) {
         navigator.pop();
@@ -105,7 +108,7 @@ class SettingsPage extends StatelessWidget {
     }
   }
 
-  // --- UNIWERSALNY WIDGET STATUSU (NOWOŚĆ) ---
+  // --- UNIVERSAL STATUS WIDGET ---
   Widget _buildStatusTile({
     required IconData icon,
     required Color color,
@@ -161,19 +164,34 @@ class SettingsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    String displayName = 'Local User';
-    String email = 'Offline / QNAP Mode';
+    final authState = context.watch<AuthBloc>().state;
+    final bool isAuthenticated = authState is Authenticated;
+
+    // --- AUTH DATA EXTRACTION ---
+    String displayName = 'Corporate Account (QNAP)';
+    String email = '';
+    String roleInfo = 'Role: USER';
     String? photoUrl;
     bool isFirebase = false;
 
+    // 1. Check for QNAP Auth Data (AuthBloc)
+    if (isAuthenticated) {
+      roleInfo = 'Role: ${authState.role.toUpperCase()}';
+      // In QNAP mode, we often use the email from AuthBloc if available
+      email = authState.email;
+    }
+
+    // 2. Check for Firebase Auth Data (if exists)
     try {
       if (Firebase.apps.isNotEmpty) {
         final user = FirebaseAuth.instance.currentUser;
         if (user != null) {
-          displayName = user.displayName ?? 'User';
+          displayName = user.displayName ?? 'Home User';
           email = user.email ?? '';
           photoUrl = user.photoURL;
           isFirebase = true;
+          // In Firebase mode, role isn't typically stored in state like QNAP
+          roleInfo = '';
         }
       }
     } catch (_) {}
@@ -184,12 +202,74 @@ class SettingsPage extends StatelessWidget {
           const SliverAppBar.large(title: Text('Settings')),
           SliverList(
             delegate: SliverChildListDelegate([
-              _buildSectionHeader(context, 'Data & Synchronization'),
+              _buildSectionHeader(context, 'Account & Login'),
               Card(
                 margin: const EdgeInsets.symmetric(horizontal: 16),
                 child: Column(
                   children: [
-                    // --- 1. LOCAL DATABASE (Teraz "żyje" dzięki Cubitowi) ---
+                    ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: isFirebase
+                            ? Colors.orange.shade100
+                            : Colors.blue.shade100,
+                        backgroundImage:
+                            photoUrl != null ? NetworkImage(photoUrl) : null,
+                        child: photoUrl == null
+                            ? Icon(
+                                isFirebase ? Icons.home : Icons.business,
+                                color: isFirebase ? Colors.orange : Colors.blue,
+                              )
+                            : null,
+                      ),
+                      title: Text(displayName,
+                          style: const TextStyle(fontWeight: FontWeight.bold)),
+                      // --- UPDATED SUBTITLE TO SHOW EMAIL AND ROLE ---
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (email.isNotEmpty)
+                            Text(email, style: const TextStyle(fontSize: 13)),
+                          if (roleInfo.isNotEmpty)
+                            Text(roleInfo,
+                                style: TextStyle(
+                                    fontSize: 11,
+                                    color:
+                                        Theme.of(context).colorScheme.primary,
+                                    fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                    ),
+                    const Divider(height: 1),
+                    if (isAuthenticated)
+                      ListTile(
+                        leading: const Icon(Icons.logout, color: Colors.orange),
+                        title: const Text('Log Out',
+                            style: TextStyle(
+                                color: Colors.orange,
+                                fontWeight: FontWeight.bold)),
+                        onTap: () => _handleLogout(context),
+                      ),
+                    if (isFirebase) ...[
+                      const Divider(height: 1),
+                      ListTile(
+                        leading:
+                            const Icon(Icons.delete_forever, color: Colors.red),
+                        title: const Text('Delete Account',
+                            style: TextStyle(
+                                color: Colors.red,
+                                fontWeight: FontWeight.bold)),
+                        onTap: () => _handleDeleteAccount(context),
+                      ),
+                    ]
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              _buildSectionHeader(context, 'Database & Synchronization'),
+              Card(
+                margin: const EdgeInsets.symmetric(horizontal: 16),
+                child: Column(
+                  children: [
                     BlocBuilder<LocalStorageCubit, LocalStorageState>(
                       builder: (context, state) {
                         int total = 0;
@@ -200,7 +280,6 @@ class SettingsPage extends StatelessWidget {
                           pending = state.unsyncedItems;
                         }
 
-                        // Logika kolorów: Pomarańczowy = Dane czekają
                         final bool hasPending = pending > 0;
                         final Color color =
                             hasPending ? Colors.orange : Colors.blue;
@@ -208,8 +287,8 @@ class SettingsPage extends StatelessWidget {
                             ? Icons.cloud_upload_outlined
                             : Icons.storage_rounded;
                         final String statusText = hasPending
-                            ? '$total items stored\n($pending pending sync)'
-                            : '$total items stored (All synced)';
+                            ? '$total in database\n($pending pending sync)'
+                            : '$total in database (Synced)';
 
                         return _buildStatusTile(
                           icon: icon,
@@ -222,10 +301,7 @@ class SettingsPage extends StatelessWidget {
                         );
                       },
                     ),
-
                     const Divider(height: 1),
-
-                    // --- 2. REMOTE SYNC (QNAP/Firebase z Timerem) ---
                     BlocBuilder<ServerStatusCubit, ServerStatusState>(
                       builder: (context, state) {
                         final cubit = context.read<ServerStatusCubit>();
@@ -239,7 +315,7 @@ class SettingsPage extends StatelessWidget {
 
                         if (state is ServerStatusDisabled) {
                           isSwitchOn = false;
-                          subtitle = "Sync is disabled";
+                          subtitle = "Synchronization disabled";
                           color = Colors.grey;
                           icon = Icons.cloud_off_rounded;
                         } else if (state is ServerStatusChecking) {
@@ -257,8 +333,8 @@ class SettingsPage extends StatelessWidget {
                         } else if (state is ServerStatusOffline) {
                           isSwitchOn = true;
                           subtitle = serviceName == 'QNAP'
-                              ? "Offline (Check VPN)"
-                              : "Offline (Check Internet)";
+                              ? "No connection (Check VPN)"
+                              : "No internet connection";
                           color = Colors.red;
                           icon = Icons.signal_wifi_off;
                           isBold = true;
@@ -284,52 +360,8 @@ class SettingsPage extends StatelessWidget {
               _buildSectionHeader(context, 'Appearance'),
               const ThemeSelectorCard(),
               const SizedBox(height: 8),
-              _buildSectionHeader(context, 'About'),
+              _buildSectionHeader(context, 'About App'),
               const AboutCard(),
-              const SizedBox(height: 8),
-              _buildSectionHeader(context, 'Account'),
-              Card(
-                margin: const EdgeInsets.symmetric(horizontal: 16),
-                child: Column(
-                  children: [
-                    ListTile(
-                      leading: CircleAvatar(
-                        backgroundImage:
-                            photoUrl != null ? NetworkImage(photoUrl) : null,
-                        child: photoUrl == null
-                            ? Text(displayName.isNotEmpty
-                                ? displayName[0].toUpperCase()
-                                : 'U')
-                            : null,
-                      ),
-                      title: Text(displayName,
-                          style: const TextStyle(fontWeight: FontWeight.bold)),
-                      subtitle: Text(email),
-                    ),
-                    if (isFirebase) ...[
-                      const Divider(height: 1),
-                      ListTile(
-                        leading: const Icon(Icons.logout, color: Colors.orange),
-                        title: const Text('Log Out',
-                            style: TextStyle(
-                                color: Colors.orange,
-                                fontWeight: FontWeight.bold)),
-                        onTap: () => _handleLogout(context),
-                      ),
-                      const Divider(height: 1),
-                      ListTile(
-                        leading:
-                            const Icon(Icons.delete_forever, color: Colors.red),
-                        title: const Text('Delete Account',
-                            style: TextStyle(
-                                color: Colors.red,
-                                fontWeight: FontWeight.bold)),
-                        onTap: () => _handleDeleteAccount(context),
-                      ),
-                    ]
-                  ],
-                ),
-              ),
               const SizedBox(height: 50),
             ]),
           ),

@@ -7,8 +7,9 @@ import 'package:path/path.dart' as path;
 import 'package:grid_storage_nfc/features/inventory/domain/entities/storage_box.dart';
 import 'package:grid_storage_nfc/features/inventory/presentation/bloc/inventory_bloc.dart';
 import 'package:hexcolor/hexcolor.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // Added for role checking
 
-// Importy do drukowania (pdf & printing)
+// Printing imports
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
@@ -39,6 +40,7 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
   String _selectedColor = '#FFFFFF';
   String? _imagePath;
   bool _isLoading = false;
+  bool _isAdmin = false; // New flag for role-based UI
 
   final List<String> _colors = [
     '#FFFFFF',
@@ -62,6 +64,7 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
     _nameController = TextEditingController();
     _quantityController = TextEditingController();
     _thresholdController = TextEditingController();
+    _checkRole(); // Initialize role check
 
     if (widget.boxToEdit != null) {
       _nameController.text = widget.boxToEdit!.itemName;
@@ -72,6 +75,15 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
     }
   }
 
+  // Fetch the user role from local storage
+  Future<void> _checkRole() async {
+    final prefs = await SharedPreferences.getInstance();
+    final role = prefs.getString('user_role') ?? 'user';
+    setState(() {
+      _isAdmin = role.toLowerCase() == 'admin';
+    });
+  }
+
   @override
   void dispose() {
     _nameController.dispose();
@@ -80,7 +92,7 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
     super.dispose();
   }
 
-  // --- LOGIKA DRUKOWANIA ---
+  // --- PRINTING LOGIC ---
   Future<void> _printLabel() async {
     final barcodeData = widget.boxToEdit?.barcode ?? widget.scannedCode;
     final itemName =
@@ -94,7 +106,6 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
     }
 
     final doc = pw.Document();
-
     doc.addPage(
       pw.Page(
         pageFormat: PdfPageFormat.roll80,
@@ -223,8 +234,6 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
         isEditing ? Icons.save_as : (useNfc ? Icons.nfc : Icons.save);
 
     final bgImage = _getImageProvider();
-
-    // Sprawdzamy, czy jest dostępny kod (z bazy lub ze skanera)
     final hasBarcode =
         widget.boxToEdit?.barcode != null || widget.scannedCode != null;
 
@@ -252,7 +261,6 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
         appBar: AppBar(
           title: Text(appBarTitle),
           centerTitle: true,
-          // USUNIĘTO actions z AppBar, aby ikona była tylko przy kodzie
         ),
         body: Stack(
           children: [
@@ -265,7 +273,6 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // --- ZIELONY PASEK Z KODEM I IKONĄ DRUKOWANIA ---
                       if (hasBarcode)
                         Container(
                           padding: const EdgeInsets.all(12),
@@ -295,7 +302,6 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
                                   ],
                                 ),
                               ),
-                              // TUTAJ JEST PRZYCISK DRUKOWANIA
                               IconButton(
                                 icon: const Icon(Icons.print,
                                     color: Colors.green),
@@ -475,7 +481,8 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
                           ),
                         ),
                       ),
-                      if (isEditing) ...[
+                      // ONLY ADMINS CAN SEE THE DELETE BUTTON
+                      if (isEditing && _isAdmin) ...[
                         const SizedBox(height: 24),
                         SizedBox(
                           width: double.infinity,
@@ -527,11 +534,7 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
                   color: Colors.white.withOpacity(0.1),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(
-                  Icons.nfc,
-                  size: 80,
-                  color: Colors.white,
-                ),
+                child: const Icon(Icons.nfc, size: 80, color: Colors.white),
               ),
               const SizedBox(height: 24),
               const Text(

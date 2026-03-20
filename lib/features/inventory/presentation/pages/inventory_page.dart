@@ -6,16 +6,16 @@ import 'package:grid_storage_nfc/features/inventory/presentation/bloc/inventory_
 import 'package:grid_storage_nfc/features/inventory/presentation/pages/barcode_scanner_page.dart';
 import 'package:grid_storage_nfc/features/inventory/presentation/pages/setup_tag_screen.dart';
 import 'package:intl/intl.dart';
+// NOWY IMPORT:
+import 'package:grid_storage_nfc/features/inventory/presentation/bloc/auth/auth_bloc.dart';
 
 class InventoryPage extends StatelessWidget {
   const InventoryPage({super.key});
 
-  // --- GENERATOR ID (Wirtualny kod) ---
   String _generateLocalId() {
     return 'LOC-${DateTime.now().millisecondsSinceEpoch}';
   }
 
-  // --- DIALOG DODAWANIA RĘCZNEGO ---
   void _showManualAddDialog(BuildContext context) {
     final nameController = TextEditingController();
     final qtyController = TextEditingController(text: '1');
@@ -83,14 +83,13 @@ class InventoryPage extends StatelessWidget {
 
               final generatedId = _generateLocalId();
 
-              // Wysyłamy zdarzenie zapisu do Bloca
               context.read<InventoryBloc>().add(WriteTagRequested(
                     name: nameController.text,
                     quantity: int.tryParse(qtyController.text) ?? 1,
                     threshold: int.tryParse(thresholdController.text) ?? 0,
-                    color: '#2196F3', // Domyślny niebieski
-                    writeToNfc: false, // WAŻNE: Nie próbuj pisać na NFC
-                    barcode: generatedId, // Zapisz nasz wirtualny kod
+                    color: '#2196F3',
+                    writeToNfc: false,
+                    barcode: generatedId,
                   ));
 
               Navigator.pop(ctx);
@@ -110,12 +109,14 @@ class InventoryPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // --- SPRAWDZENIE ROLI ---
+    final authState = context.watch<AuthBloc>().state;
+    final isAdmin = authState is Authenticated && authState.role == 'admin';
+
     return Scaffold(
-      // --- DOLNY PASEK PRZYCISKÓW ---
       floatingActionButton: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // 1. SKANER QR
           FloatingActionButton(
             heroTag: 'qr_scan',
             onPressed: () async {
@@ -131,19 +132,17 @@ class InventoryPage extends StatelessWidget {
             backgroundColor: Theme.of(context).colorScheme.secondaryContainer,
             child: const Icon(Icons.qr_code_scanner),
           ),
+          if (isAdmin) ...[
+            const SizedBox(width: 16),
+            FloatingActionButton(
+              heroTag: 'manual_add',
+              onPressed: () => _showManualAddDialog(context),
+              backgroundColor: Colors.orange.shade100,
+              foregroundColor: Colors.orange.shade900,
+              child: const Icon(Icons.edit_note),
+            ),
+          ],
           const SizedBox(width: 16),
-
-          // 2. NOWOŚĆ: DODAJ RĘCZNIE
-          FloatingActionButton(
-            heroTag: 'manual_add',
-            onPressed: () => _showManualAddDialog(context),
-            backgroundColor: Colors.orange.shade100,
-            foregroundColor: Colors.orange.shade900,
-            child: const Icon(Icons.edit_note),
-          ),
-          const SizedBox(width: 16),
-
-          // 3. SKANER NFC
           FloatingActionButton.extended(
             heroTag: 'nfc_scan',
             onPressed: () {
@@ -188,8 +187,8 @@ class InventoryPage extends StatelessWidget {
                     },
                     child: const Text('Go back'),
                   ),
-                  // Jeśli nie znaleziono przedmiotu po skanie, proponujemy utworzenie
-                  if (state.message.contains('not found')) ...[
+                  // Utworzenie przedmiotu po nieudanym skanie - TYLKO DLA ADMINA
+                  if (state.message.contains('not found') && isAdmin) ...[
                     const SizedBox(height: 12),
                     FilledButton(
                       onPressed: () {
@@ -213,15 +212,13 @@ class InventoryPage extends StatelessWidget {
             );
           }
           if (state is InventoryLoaded) {
-            return _buildLoadedState(context, state.box);
+            return _buildLoadedState(context, state.box, isAdmin);
           }
           return const Center(child: Text('Something went wrong.'));
         },
       ),
     );
   }
-
-  // --- UI POMOCNICZE (Zachowane z Twojego kodu) ---
 
   Widget _buildEmptyState(BuildContext context) {
     return CustomScrollView(
@@ -271,7 +268,8 @@ class InventoryPage extends StatelessWidget {
     );
   }
 
-  Widget _buildLoadedState(BuildContext context, StorageBox box) {
+  // --- Otrzymuje parametr isAdmin ---
+  Widget _buildLoadedState(BuildContext context, StorageBox box, bool isAdmin) {
     return CustomScrollView(
       slivers: [
         SliverAppBar.large(
@@ -297,44 +295,54 @@ class InventoryPage extends StatelessWidget {
                       fontWeight: FontWeight.w500),
                 ),
               ),
+              // Zmiana ilości - DLA WSZYSTKICH
               _buildQuantityStepper(context, box),
-              const SizedBox(height: 80),
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => SetupTagScreen(boxToEdit: box),
-                          ),
-                        );
-                      },
-                      icon: const Icon(Icons.edit_outlined),
-                      label: const Text("Edit Details"),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        side: BorderSide(color: Theme.of(context).primaryColor),
+
+              // Przyciski edycji i usuwania - TYLKO DLA ADMINA
+              if (isAdmin) ...[
+                const SizedBox(height: 80),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => SetupTagScreen(boxToEdit: box),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.edit_outlined),
+                        label: const Text("Edit Details"),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          side:
+                              BorderSide(color: Theme.of(context).primaryColor),
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: TextButton.icon(
-                      onPressed: () => _confirmDelete(context, box),
-                      icon: const Icon(Icons.delete_outline, color: Colors.red),
-                      label: const Text(
-                        "Delete",
-                        style: TextStyle(color: Colors.red),
-                      ),
-                      style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        backgroundColor: Colors.red.withOpacity(0.05),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: TextButton.icon(
+                        onPressed: () => _confirmDelete(context, box),
+                        icon:
+                            const Icon(Icons.delete_outline, color: Colors.red),
+                        label: const Text(
+                          "Delete",
+                          style: TextStyle(color: Colors.red),
+                        ),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          backgroundColor: Colors.red.withOpacity(0.05),
+                        ),
                       ),
                     ),
-                  ),
-                ],
-              ),
+                  ],
+                ),
+              ] else ...[
+                // Trochę marginesu na dole dla zwykłego usera
+                const SizedBox(height: 40),
+              ]
             ]),
           ),
         ),

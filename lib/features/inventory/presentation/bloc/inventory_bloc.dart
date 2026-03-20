@@ -7,9 +7,9 @@ import 'package:grid_storage_nfc/features/inventory/domain/usecases/get_inventor
 import 'package:grid_storage_nfc/features/inventory/domain/usecases/get_last_used_item.dart';
 import 'package:grid_storage_nfc/features/inventory/domain/usecases/save_inventory_item.dart';
 import 'package:grid_storage_nfc/features/inventory/domain/usecases/delete_inventory_item.dart';
-// <--- NOWY IMPORT
 import 'package:grid_storage_nfc/core/services/nfc_service.dart';
 import 'package:equatable/equatable.dart';
+import 'package:grid_storage_nfc/features/inventory/domain/usecases/search_inventory_items.dart';
 // import 'package:grid_storage_nfc/features/inventory/domain/usecases/search_inventory_items';
 
 part 'inventory_event.dart';
@@ -21,7 +21,7 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
   final SaveInventoryItem saveInventoryItem;
   final DeleteInventoryItem deleteInventoryItem;
   final GetLastUsedItem getLastUsedItem;
-  // final SearchInventoryItems searchInventoryItems; // <--- NOWE POLE
+  final SearchInventoryItems searchInventoryItems;
   final NfcService _nfcService;
   final NotificationService notificationService;
 
@@ -31,7 +31,7 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
     required this.saveInventoryItem,
     required this.deleteInventoryItem,
     required this.getLastUsedItem,
-    // required this.searchInventoryItems, // <--- DODANE DO KONSTRUKTORA
+    required this.searchInventoryItems,
     required NfcService nfcService,
     required this.notificationService,
   })  : _nfcService = nfcService,

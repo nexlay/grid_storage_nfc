@@ -7,10 +7,8 @@ abstract class AuthEvent extends Equatable {
   List<Object?> get props => [];
 }
 
-// Sprawdzenie na starcie aplikacji (Splash Screen)
 class AuthCheckRequested extends AuthEvent {}
 
-// Kliknięcie "Zaloguj"
 class LoginRequested extends AuthEvent {
   final String? email;
   final String? password;
@@ -21,8 +19,13 @@ class LoginRequested extends AuthEvent {
   List<Object?> get props => [email, password];
 }
 
-// Kliknięcie "Wyloguj"
 class LogoutRequested extends AuthEvent {}
 
-// Kliknięcie "Usuń konto"
-class DeleteAccountRequested extends AuthEvent {}
+class PasswordChangeRequested extends AuthEvent {
+  final String email;
+
+  const PasswordChangeRequested(this.email);
+
+  @override
+  List<Object?> get props => [email];
+}

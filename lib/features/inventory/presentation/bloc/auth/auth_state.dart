@@ -7,30 +7,35 @@ abstract class AuthState extends Equatable {
   List<Object?> get props => [];
 }
 
-// Stan początkowy
 class AuthInitial extends AuthState {}
 
-// Kręcące się kółko
 class AuthLoading extends AuthState {}
 
-// Zalogowany (wiemy jaka rola)
 class Authenticated extends AuthState {
-  final String role; // 'web_admin' lub 'web_user'
+  final String role; // 'admin' lub 'user'
+  final String email;
 
-  const Authenticated(this.role);
+  const Authenticated(this.role, this.email);
 
   @override
-  List<Object?> get props => [role];
+  List<Object?> get props => [role, email];
 }
 
-// Niezalogowany (pokaż ekran logowania)
 class Unauthenticated extends AuthState {}
 
-// Błąd (pokaż SnackBar)
 class AuthError extends AuthState {
   final String message;
 
   const AuthError(this.message);
+
+  @override
+  List<Object?> get props => [message];
+}
+
+class PasswordChangeSuccess extends AuthState {
+  final String message;
+
+  const PasswordChangeSuccess(this.message);
 
   @override
   List<Object?> get props => [message];
