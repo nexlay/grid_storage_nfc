@@ -56,7 +56,14 @@ class DeleteBoxRequested extends InventoryEvent {
   List<Object?> get props => [boxId];
 }
 
+class SearchItems extends InventoryEvent {
+  final String query;
 
+  const SearchItems(this.query);
+
+  @override
+  List<Object?> get props => [query];
+}
 
 /// Żądanie zapisu (utworzenie nowego lub edycja)
 class WriteTagRequested extends InventoryEvent {

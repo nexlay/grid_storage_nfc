@@ -43,22 +43,39 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
     on<LoadAllItems>(_onLoadAllItems);
     on<ResetInventory>(_onResetInventory);
     on<ProcessScannedCode>(_onProcessScannedCode);
-    // on<SearchQueryChanged>(_onSearchQueryChanged);
+    on<SearchItems>(_onSearchItems);
   }
 
-  // --- ZAKTUALIZOWANA METODA WYSZUKIWANIA ---
-  // Future<void> _onSearchQueryChanged(
-  //   SearchQueryChanged event,
-  //   Emitter<InventoryState> emit,
-  // ) async {
-  //   try {
-  //     // Zamiast filtrować w pamięci, delegujemy to do Bazy Danych (Isar)
-  //     final results = await searchInventoryItems(event.query);
-  //     emit(InventoryListLoaded(boxes: results));
-  //   } catch (e) {
-  //     emit(InventoryError('Search failed: ${e.toString()}'));
-  //   }
-  // }
+  Future<void> _onSearchItems(
+    SearchItems event,
+    Emitter<InventoryState> emit,
+  ) async {
+    try {
+      // Pobieramy wszystkie przedmioty
+      final allBoxes = await getInventoryList();
+
+      // Jeśli pole wyszukiwania jest puste, pokazujemy wszystko
+      if (event.query.isEmpty) {
+        emit(InventoryListLoaded(boxes: allBoxes));
+        return;
+      }
+
+      // W przeciwnym razie filtrujemy listę
+      final query = event.query.toLowerCase();
+      final filteredBoxes = allBoxes.where((box) {
+        final matchesName = box.itemName.toLowerCase().contains(query);
+        final matchesBarcode =
+            box.barcode?.toLowerCase().contains(query) ?? false;
+
+        return matchesName || matchesBarcode;
+      }).toList();
+
+      // Zwracamy przefiltrowaną listę do interfejsu
+      emit(InventoryListLoaded(boxes: filteredBoxes));
+    } catch (e) {
+      emit(InventoryError('Search failed: ${e.toString()}'));
+    }
+  }
 
   Future<void> _onProcessScannedCode(
     ProcessScannedCode event,

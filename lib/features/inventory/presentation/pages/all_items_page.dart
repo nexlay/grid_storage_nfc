@@ -37,7 +37,7 @@ class _AllItemsPageState extends State<AllItemsPage> {
   }
 
   void _onSearchChanged(String query) {
-    // Implement search logic if needed
+    context.read<InventoryBloc>().add(SearchItems(query));
   }
 
   String _generateLocalId() {
