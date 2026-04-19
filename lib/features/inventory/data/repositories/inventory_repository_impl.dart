@@ -26,30 +26,59 @@ class InventoryRepositoryImpl implements InventoryRepository {
 
   @override
   Future<List<StorageBox>> getAllBoxes() async {
-    var localBoxes = await localDataSource.getAllBoxes();
-
-    if (localBoxes.isEmpty &&
-        await networkInfo.isConnected &&
-        await _isSyncEnabled()) {
+    // Zawsze zaczynamy od próby twardej synchronizacji, jeśli mamy internet i włączony sync
+    if (await networkInfo.isConnected && await _isSyncEnabled()) {
       try {
         final remoteBoxes = await remoteDataSource.getAllBoxes();
+        final localBoxes = await localDataSource.getAllBoxes();
 
-        final checkAgain = await localDataSource.getAllBoxes();
+        // Tworzymy mapę z przedmiotami z Firebase dla szybkiego wyszukiwania po remoteId
+        final remoteBoxMap = {for (var b in remoteBoxes) b.remoteId: b};
 
-        if (checkAgain.isEmpty) {
-          for (var box in remoteBoxes) {
-            box.isSynced = true;
-            await localDataSource.saveBox(box);
+        // 1. ZABIJANIE DUCHÓW: Usuwamy lokalne przedmioty, których już nie ma na serwerze
+        for (var localBox in localBoxes) {
+          // Usuwamy tylko te, które były wcześniej zsynchronizowane, a zniknęły z serwera
+          if (localBox.isSynced && localBox.remoteId != null) {
+            if (!remoteBoxMap.containsKey(localBox.remoteId)) {
+              await localDataSource.deleteBox(localBox.id.toString());
+            }
           }
         }
 
-        localBoxes = await localDataSource.getAllBoxes();
+        // 2. AKTUALIZACJA I POBIERANIE NOWOŚCI Z SERWERA
+        for (var remoteBox in remoteBoxes) {
+          // Szukamy, czy mamy już ten przedmiot u siebie
+          final existingLocals =
+              localBoxes.where((b) => b.remoteId == remoteBox.remoteId);
+
+          if (existingLocals.isNotEmpty) {
+            final existingLocal = existingLocals.first;
+            // Jeśli pracowaliśmy na nim offline (isSynced == false), nie nadpisujemy go serwerem!
+            // Zostawiamy nasze lokalne zmiany, żeby zaraz wysłać je do bazy.
+            if (!existingLocal.isSynced) continue;
+
+            // Jeśli był zsynchronizowany, po prostu aktualizujemy jego dane,
+            // ale ZACHOWUJEMY jego unikalne, lokalne ID z bazy Isar.
+            remoteBox.id = existingLocal.id;
+          }
+
+          // Zapisujemy nowość / zaktualizowany przedmiot do lokalnej bazy
+          remoteBox.isSynced = true;
+          await localDataSource.saveBox(remoteBox);
+        }
+
+        // 3. Jeśli mieliśmy jakieś zaległe rzeczy zrobione offline, od razu próbujemy je wysłać
+        final unsynced = localBoxes.where((b) => !b.isSynced).toList();
+        if (unsynced.isNotEmpty) {
+          syncPendingItems(); // Puszczamy proces w tle
+        }
       } catch (e) {
-        print('Błąd pobierania wstępnego: $e');
+        print('Błąd synchronizacji pobierania (getAllBoxes): $e');
       }
     }
 
-    return localBoxes;
+    // Na koniec po prostu zwracamy naszą odświeżoną, czystą lokalną bazę
+    return await localDataSource.getAllBoxes();
   }
 
   @override

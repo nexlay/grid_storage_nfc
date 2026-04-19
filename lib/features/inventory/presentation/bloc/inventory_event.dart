@@ -65,6 +65,19 @@ class SearchItems extends InventoryEvent {
   List<Object?> get props => [query];
 }
 
+class ExportItemsRequested extends InventoryEvent {
+  final List<StorageBox> itemsToExport;
+  final String format; // 'pdf' lub 'excel'
+
+  const ExportItemsRequested({
+    required this.itemsToExport,
+    required this.format,
+  });
+
+  @override
+  List<Object?> get props => [itemsToExport, format];
+}
+
 /// Żądanie zapisu (utworzenie nowego lub edycja)
 class WriteTagRequested extends InventoryEvent {
   final int? id; // null = nowy przedmiot

@@ -55,8 +55,18 @@ class QnapAuthRepository implements AuthRepository {
   @override
   Future<bool> isLoggedIn() async {
     final token = await storage.read(key: 'jwt_token');
+
+    // Jeśli nie ma tokenu, na pewno jesteśmy wylogowani.
     if (token == null) return false;
-    return !JwtDecoder.isExpired(token);
+
+    // --- NOWA LOGIKA ---
+    // Nie usuwamy użytkownika z aplikacji, jeśli token po prostu "wygasł"
+    // w oczach JwtDecoder, gdy jesteśmy w terenie bez dostępu do QNAPa.
+    // Zostawiamy token w pamięci. Jeśli QNAP odrzuci połączenie (401),
+    // to remote_data_source powinien wyrzucić błąd, a wtedy możemy wylogować.
+
+    // Zwracamy TRUE po prostu na podstawie tego, że token istnieje w SecureStorage.
+    return true;
   }
 
   @override

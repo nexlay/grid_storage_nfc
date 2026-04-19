@@ -15,7 +15,7 @@ extension GetStorageBoxCollection on Isar {
 
 const StorageBoxSchema = CollectionSchema(
   name: r'StorageBox',
-  id: 8396087194618730496,
+  id: 8396087194618730712,
   properties: {
     r'barcode': PropertySchema(
       id: 0,

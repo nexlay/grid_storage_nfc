@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:grid_storage_nfc/core/notifications/notification_service.dart';
+import 'package:grid_storage_nfc/core/services/export_service.dart'; // <--- NOWY IMPORT
 import 'package:grid_storage_nfc/features/inventory/domain/entities/storage_box.dart';
 import 'package:grid_storage_nfc/features/inventory/domain/usecases/get_inventory_list.dart';
 import 'package:grid_storage_nfc/features/inventory/domain/usecases/get_inventory_item.dart';
@@ -10,7 +11,6 @@ import 'package:grid_storage_nfc/features/inventory/domain/usecases/delete_inven
 import 'package:grid_storage_nfc/core/services/nfc_service.dart';
 import 'package:equatable/equatable.dart';
 import 'package:grid_storage_nfc/features/inventory/domain/usecases/search_inventory_items.dart';
-// import 'package:grid_storage_nfc/features/inventory/domain/usecases/search_inventory_items';
 
 part 'inventory_event.dart';
 part 'inventory_state.dart';
@@ -24,6 +24,7 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
   final SearchInventoryItems searchInventoryItems;
   final NfcService _nfcService;
   final NotificationService notificationService;
+  final ExportService exportService; // <--- NOWY SERWIS
 
   InventoryBloc({
     required this.getInventoryList,
@@ -34,6 +35,7 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
     required this.searchInventoryItems,
     required NfcService nfcService,
     required this.notificationService,
+    required this.exportService, // <--- DODANE DO KONSTRUKTORA
   })  : _nfcService = nfcService,
         super(const InventoryInitial()) {
     on<ScanTagRequested>(_onScanTagRequested);
@@ -44,6 +46,26 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
     on<ResetInventory>(_onResetInventory);
     on<ProcessScannedCode>(_onProcessScannedCode);
     on<SearchItems>(_onSearchItems);
+    on<ExportItemsRequested>(
+        _onExportItemsRequested); // <--- NASŁUCHIWANIE NA EKSPORT
+  }
+
+  // --- NOWA METODA EKSPORTU ---
+  Future<void> _onExportItemsRequested(
+    ExportItemsRequested event,
+    Emitter<InventoryState> emit,
+  ) async {
+    try {
+      if (event.format == 'pdf') {
+        await exportService.exportToPdf(event.itemsToExport);
+      } else if (event.format == 'excel') {
+        await exportService.exportToExcel(event.itemsToExport);
+      }
+      // Nie emitujemy nowego stanu, bo share_plus samo otwiera okienko systemowe.
+      // Ewentualnie można by dodać SnackBar z sukcesem w UI.
+    } catch (e) {
+      emit(InventoryError('Failed to export: ${e.toString()}'));
+    }
   }
 
   Future<void> _onSearchItems(
@@ -51,16 +73,13 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
     Emitter<InventoryState> emit,
   ) async {
     try {
-      // Pobieramy wszystkie przedmioty
       final allBoxes = await getInventoryList();
 
-      // Jeśli pole wyszukiwania jest puste, pokazujemy wszystko
       if (event.query.isEmpty) {
         emit(InventoryListLoaded(boxes: allBoxes));
         return;
       }
 
-      // W przeciwnym razie filtrujemy listę
       final query = event.query.toLowerCase();
       final filteredBoxes = allBoxes.where((box) {
         final matchesName = box.itemName.toLowerCase().contains(query);
@@ -70,7 +89,6 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
         return matchesName || matchesBarcode;
       }).toList();
 
-      // Zwracamy przefiltrowaną listę do interfejsu
       emit(InventoryListLoaded(boxes: filteredBoxes));
     } catch (e) {
       emit(InventoryError('Search failed: ${e.toString()}'));
@@ -94,11 +112,6 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
         } catch (_) {}
       }
 
-      print("🔍 Szukam kodu: '$cleanCode'");
-
-      // Do "znajdź jeden" używamy listy w pamięci (dla uproszczenia),
-      // bo Isar getBox wymaga ID int, a tu mamy string/barcode.
-      // Ewentualnie w przyszłości można dodać getBoxByBarcode do repozytorium.
       final allItems = await getInventoryList();
 
       try {
@@ -106,11 +119,9 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
           return b.id.toString() == cleanCode || b.barcode == cleanCode;
         });
 
-        print("✅ Znaleziono: ${box.itemName}");
         final isLowStock = box.quantity <= box.threshold;
         emit(InventoryLoaded(box: box, isLowStock: isLowStock));
       } catch (_) {
-        print("❌ Nie znaleziono.");
         emit(InventoryError(
           'Item not found for code: $cleanCode',
           scannedCode: cleanCode,
@@ -145,7 +156,6 @@ class InventoryBloc extends Bloc<InventoryEvent, InventoryState> {
           lastUsed: DateTime.now(),
           isSynced: false,
           imagePath: event.imagePath,
-          // barcode: event.barcode,
         );
       } else {
         boxToSave = StorageBox()

@@ -19,6 +19,9 @@ class _LoginPageState extends State<LoginPage> {
   bool _isHomeMode = false;
   bool _isLoadingFlavor = true;
 
+  // --- DODANE: Zmienna sterująca widocznością hasła ---
+  bool _obscurePassword = true;
+
   @override
   void initState() {
     super.initState();
@@ -155,12 +158,26 @@ class _LoginPageState extends State<LoginPage> {
                       const SizedBox(height: 16),
                       TextFormField(
                         controller: _passwordController,
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           labelText: 'Password',
-                          prefixIcon: Icon(Icons.lock_outline),
-                          border: OutlineInputBorder(),
+                          prefixIcon: const Icon(Icons.lock_outline),
+                          border: const OutlineInputBorder(),
+                          // --- DODANE: Przycisk z oczkiem ---
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _obscurePassword
+                                  ? Icons.visibility_off
+                                  : Icons.visibility,
+                            ),
+                            onPressed: () {
+                              setState(() {
+                                _obscurePassword = !_obscurePassword;
+                              });
+                            },
+                          ),
                         ),
-                        obscureText: true,
+                        // --- ZMIENIONE: Zamiast sztywnego "true", używamy naszej zmiennej ---
+                        obscureText: _obscurePassword,
                         validator: (v) =>
                             v!.isEmpty ? 'Please enter password' : null,
                       ),

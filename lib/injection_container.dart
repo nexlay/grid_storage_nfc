@@ -14,10 +14,10 @@ import 'package:grid_storage_nfc/core/notifications/notification_service.dart';
 import 'package:grid_storage_nfc/core/server_status/server_status_cubit.dart';
 import 'package:grid_storage_nfc/core/services/nfc_service.dart';
 import 'package:grid_storage_nfc/core/services/auth_service.dart';
+import 'package:grid_storage_nfc/core/services/export_service.dart'; // <--- DODANY IMPORT
 import 'package:grid_storage_nfc/core/theme/theme_cubit.dart';
 
 // --- IMPORTS: AUTH REPOSITORIES ---
-// Ścieżki zgodnie z Twoją strukturą wewnątrz inventory
 import 'package:grid_storage_nfc/features/inventory/domain/repositories/auth_repository.dart';
 import 'package:grid_storage_nfc/features/inventory/data/repositories/firebase_auth_repository_impl.dart';
 import 'package:grid_storage_nfc/features/inventory/data/repositories/qnap_auth_repository_impl.dart';
@@ -64,6 +64,8 @@ Future<void> init() async {
   sl.registerLazySingleton(() => InternetConnection());
   sl.registerLazySingleton(() => NfcService());
   sl.registerLazySingleton(() => NotificationService());
+  sl.registerLazySingleton(
+      () => ExportService()); // <--- DODANA REJESTRACJA SERWISU
 
   // ==========================================================
   // 2. FLAVOR LOGIC (HOME vs OFFICE)
@@ -109,7 +111,7 @@ Future<void> init() async {
       () => QnapAuthRepository(
         client: sl(),
         storage: sl(),
-      ) as AuthRepository, // Bezpieczne rzutowanie dla Darta
+      ) as AuthRepository,
     );
 
     sl.registerLazySingleton<InventoryRemoteDataSource>(
@@ -199,6 +201,7 @@ Future<void> init() async {
       searchInventoryItems: sl(),
       notificationService: sl(),
       nfcService: sl(),
+      exportService: sl(),
     ),
   );
 }

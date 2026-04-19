@@ -1,10 +1,12 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart'; // NOWOŚĆ: Wymagane dla flagi kIsWeb
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:grid_storage_nfc/features/inventory/domain/entities/storage_box.dart';
 import 'package:grid_storage_nfc/features/inventory/presentation/bloc/inventory_bloc.dart';
 import 'package:grid_storage_nfc/features/inventory/presentation/pages/setup_tag_screen.dart';
 import 'package:grid_storage_nfc/features/inventory/presentation/bloc/auth/auth_bloc.dart';
+import 'package:intl/intl.dart'; // <--- DODANO IMPORT DO FORMATOWANIA DATY
 
 class AllItemsPage extends StatefulWidget {
   const AllItemsPage({super.key});
@@ -16,6 +18,11 @@ class AllItemsPage extends StatefulWidget {
 class _AllItemsPageState extends State<AllItemsPage> {
   final TextEditingController _searchController = TextEditingController();
   bool _isSearching = false;
+
+  // --- Zmienne do Trybu Zaznaczania ---
+  bool _isSelectionMode = false;
+  final Set<int> _selectedItemIds = {};
+  List<StorageBox> _currentBoxes = [];
 
   @override
   void dispose() {
@@ -43,6 +50,78 @@ class _AllItemsPageState extends State<AllItemsPage> {
 
   String _generateLocalId() {
     return 'LOC-${DateTime.now().millisecondsSinceEpoch}';
+  }
+
+  void _toggleSelection(int id) {
+    setState(() {
+      if (_selectedItemIds.contains(id)) {
+        _selectedItemIds.remove(id);
+        if (_selectedItemIds.isEmpty) {
+          _isSelectionMode = false;
+        }
+      } else {
+        _selectedItemIds.add(id);
+      }
+    });
+  }
+
+  void _exitSelectionMode() {
+    setState(() {
+      _isSelectionMode = false;
+      _selectedItemIds.clear();
+    });
+  }
+
+  void _triggerExport(String format) {
+    final selectedItems =
+        _currentBoxes.where((b) => _selectedItemIds.contains(b.id)).toList();
+
+    if (selectedItems.isEmpty) return;
+
+    context.read<InventoryBloc>().add(
+          ExportItemsRequested(
+            itemsToExport: selectedItems,
+            format: format,
+          ),
+        );
+
+    _exitSelectionMode();
+  }
+
+  void _showExportDialog() {
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Wrap(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Text(
+                'Export ${_selectedItemIds.length} items',
+                style:
+                    const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.picture_as_pdf, color: Colors.red),
+              title: const Text('Export to PDF'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _triggerExport('pdf');
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.table_chart, color: Colors.green),
+              title: const Text('Export to Excel (.xlsx)'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _triggerExport('excel');
+              },
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildOverviewCard(int itemsCount, int totalQuantity) {
@@ -176,10 +255,7 @@ class _AllItemsPageState extends State<AllItemsPage> {
   }
 
   void _showAddOptions(BuildContext context) {
-    // --- BEZPIECZEŃSTWO WEB ---
     if (kIsWeb) {
-      // Na Webie NFC nie działa, więc całkowicie pomijamy menu wyboru
-      // i od razu pokazujemy dialog do wpisywania ręcznego.
       _showManualAddDialog(context);
       return;
     }
@@ -253,11 +329,9 @@ class _AllItemsPageState extends State<AllItemsPage> {
 
   ImageProvider? _getImageProvider(String? path) {
     if (path != null && path.isNotEmpty) {
-      if (path.startsWith('http')) {
+      if (path.startsWith('http') || path.startsWith('blob:')) {
         return NetworkImage(path);
       } else if (!kIsWeb) {
-        // --- BEZPIECZEŃSTWO WEB ---
-        // Używamy klasy File tylko na platformach mobilnych/desktopowych
         if (File(path).existsSync()) {
           return FileImage(File(path));
         }
@@ -280,56 +354,98 @@ class _AllItemsPageState extends State<AllItemsPage> {
             );
           } else if (state is InventoryInitial) {
             context.read<InventoryBloc>().add(const LoadAllItems());
+          } else if (state is InventoryListLoaded) {
+            _currentBoxes = state.boxes;
           }
         },
         builder: (context, state) {
           List<Widget> slivers = [];
 
-          // 1. AppBar
-          slivers.add(
-            SliverAppBar.large(
-              title: _isSearching
-                  ? TextField(
-                      controller: _searchController,
-                      autofocus: true,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.onSurface,
-                      ),
-                      decoration: const InputDecoration(
-                        hintText: 'Search items...',
-                        border: InputBorder.none,
-                      ),
-                      onChanged: _onSearchChanged,
-                    )
-                  : const Text('All Items'),
-              centerTitle: false,
-              actions: [
-                if (_isSearching)
+          if (_isSelectionMode) {
+            slivers.add(
+              SliverAppBar.large(
+                leading: IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: _exitSelectionMode,
+                ),
+                title: Text('${_selectedItemIds.length} Selected'),
+                backgroundColor:
+                    Theme.of(context).colorScheme.secondaryContainer,
+                actions: [
                   IconButton(
-                      icon: const Icon(Icons.close), onPressed: _stopSearch)
-                else
+                    icon: const Icon(Icons.select_all),
+                    onPressed: () {
+                      setState(() {
+                        if (_selectedItemIds.length == _currentBoxes.length) {
+                          _selectedItemIds.clear();
+                          _isSelectionMode = false;
+                        } else {
+                          _selectedItemIds
+                              .addAll(_currentBoxes.map((b) => b.id));
+                        }
+                      });
+                    },
+                    tooltip: 'Select All',
+                  ),
                   IconButton(
-                      icon: const Icon(Icons.search), onPressed: _startSearch),
-              ],
-            ),
-          );
+                    icon: const Icon(Icons.file_download_outlined),
+                    onPressed:
+                        _selectedItemIds.isEmpty ? null : _showExportDialog,
+                    tooltip: 'Export Selected',
+                  ),
+                ],
+              ),
+            );
+          } else {
+            slivers.add(
+              SliverAppBar.large(
+                title: _isSearching
+                    ? TextField(
+                        controller: _searchController,
+                        autofocus: true,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
+                        decoration: const InputDecoration(
+                          hintText: 'Search items...',
+                          border: InputBorder.none,
+                        ),
+                        onChanged: _onSearchChanged,
+                      )
+                    : const Text('All Items'),
+                centerTitle: false,
+                actions: [
+                  if (!_isSearching && _currentBoxes.isNotEmpty)
+                    IconButton(
+                      icon: const Icon(Icons.checklist),
+                      tooltip: 'Select Items',
+                      onPressed: () => setState(() => _isSelectionMode = true),
+                    ),
+                  if (_isSearching)
+                    IconButton(
+                        icon: const Icon(Icons.close), onPressed: _stopSearch)
+                  else
+                    IconButton(
+                        icon: const Icon(Icons.search),
+                        onPressed: _startSearch),
+                ],
+              ),
+            );
+          }
 
           if (state is InventoryLoading) {
             slivers.add(const SliverFillRemaining(
               child: Center(child: CircularProgressIndicator()),
             ));
           } else if (state is InventoryListLoaded) {
-            // Calculate Stats
             final int itemsCount = state.boxes.length;
             final int totalQty =
                 state.boxes.fold(0, (sum, item) => sum + item.quantity);
 
-            // 2. Overview Card (ONLY IF NOT EMPTY)
-            if (state.boxes.isNotEmpty && !_isSearching) {
+            if (state.boxes.isNotEmpty && !_isSearching && !_isSelectionMode) {
               slivers.add(_buildOverviewCard(itemsCount, totalQty));
             }
 
-            // 3. Content
             if (state.boxes.isEmpty) {
               slivers.add(SliverFillRemaining(
                 child: Center(
@@ -364,10 +480,12 @@ class _AllItemsPageState extends State<AllItemsPage> {
                         final bool isLowStock = box.quantity <= box.threshold;
                         final bool isManual =
                             box.barcode?.startsWith('LOC-') ?? false;
+                        final bool isSelected =
+                            _selectedItemIds.contains(box.id);
 
                         return Dismissible(
                           key: ValueKey(box.id),
-                          direction: isAdmin
+                          direction: (isAdmin && !_isSelectionMode)
                               ? DismissDirection.endToStart
                               : DismissDirection.none,
                           confirmDismiss: (direction) async {
@@ -387,33 +505,64 @@ class _AllItemsPageState extends State<AllItemsPage> {
                           ),
                           child: Card(
                             margin: const EdgeInsets.only(bottom: 12),
-                            elevation: 0,
+                            elevation: isSelected ? 2 : 0,
+                            color: isSelected
+                                ? Theme.of(context)
+                                    .colorScheme
+                                    .primaryContainer
+                                    .withOpacity(0.4)
+                                : null,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(12),
-                              side: isLowStock
+                              side: isLowStock && !isSelected
                                   ? BorderSide(
                                       color: Colors.red.withOpacity(0.6),
                                       width: 1.5)
                                   : BorderSide(
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .outlineVariant),
+                                      color: isSelected
+                                          ? Theme.of(context)
+                                              .colorScheme
+                                              .primary
+                                          : Theme.of(context)
+                                              .colorScheme
+                                              .outlineVariant,
+                                      width: isSelected ? 2 : 1),
                             ),
                             child: InkWell(
                               borderRadius: BorderRadius.circular(12),
+                              onLongPress: () {
+                                if (!_isSelectionMode) {
+                                  setState(() {
+                                    _isSelectionMode = true;
+                                    _selectedItemIds.add(box.id);
+                                  });
+                                }
+                              },
                               onTap: () async {
-                                await Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (_) =>
-                                        SetupTagScreen(boxToEdit: box),
-                                  ),
-                                );
+                                if (_isSelectionMode) {
+                                  _toggleSelection(box.id);
+                                } else {
+                                  await Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) =>
+                                          SetupTagScreen(boxToEdit: box),
+                                    ),
+                                  );
+                                }
                               },
                               child: Padding(
                                 padding: const EdgeInsets.symmetric(
-                                    horizontal: 16, vertical: 12),
+                                    horizontal: 12, vertical: 12),
                                 child: Row(
                                   children: [
+                                    if (_isSelectionMode) ...[
+                                      Checkbox(
+                                        value: isSelected,
+                                        onChanged: (val) =>
+                                            _toggleSelection(box.id),
+                                      ),
+                                      const SizedBox(width: 4),
+                                    ],
                                     CircleAvatar(
                                       backgroundColor: isManual
                                           ? Colors.orange.shade100
@@ -467,10 +616,28 @@ class _AllItemsPageState extends State<AllItemsPage> {
                                               ]
                                             ],
                                           ),
+                                          // --- NOWE: Data modyfikacji ---
+                                          const SizedBox(height: 4),
+                                          Row(
+                                            children: [
+                                              Icon(Icons.access_time,
+                                                  size: 12,
+                                                  color: Colors.grey.shade500),
+                                              const SizedBox(width: 4),
+                                              Text(
+                                                DateFormat('yyyy-MM-dd • HH:mm')
+                                                    .format(box.lastUsed),
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  color: Colors.grey.shade500,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
                                         ],
                                       ),
                                     ),
-                                    if (isAdmin)
+                                    if (isAdmin && !_isSelectionMode)
                                       IconButton(
                                         icon: const Icon(Icons.edit_outlined),
                                         onPressed: () async {
@@ -504,7 +671,7 @@ class _AllItemsPageState extends State<AllItemsPage> {
           return CustomScrollView(slivers: slivers);
         },
       ),
-      floatingActionButton: (!_isSearching && isAdmin)
+      floatingActionButton: (!_isSearching && isAdmin && !_isSelectionMode)
           ? FloatingActionButton(
               onPressed: () => _showAddOptions(context),
               child: const Icon(Icons.add),
