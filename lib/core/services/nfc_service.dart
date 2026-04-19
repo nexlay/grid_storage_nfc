@@ -1,13 +1,19 @@
 import 'dart:async'; // Required for Completer
 import 'dart:convert';
-import 'dart:io'; // Required for Platform check
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart'; // NOWOŚĆ: Potrzebne do kIsWeb i defaultTargetPlatform
 import 'package:nfc_manager/ndef_record.dart';
 import 'package:nfc_manager/nfc_manager.dart';
 import 'package:nfc_manager_ndef/nfc_manager_ndef.dart';
 
 class NfcService {
   Future<void> startSession(Function(String) onDiscovered) async {
+    // --- BEZPIECZEŃSTWO WEB ---
+    if (kIsWeb) {
+      debugPrint("NFC is not supported on the Web. Bypassing...");
+      return;
+    }
+
     bool isAvailable = await NfcManager.instance.checkAvailability() !=
         NfcAvailability.disabled;
     if (!isAvailable) return;
@@ -36,11 +42,19 @@ class NfcService {
   }
 
   Future<void> stopSession() async {
+    // --- BEZPIECZEŃSTWO WEB ---
+    if (kIsWeb) return;
+
     await NfcManager.instance.stopSession();
   }
 
   Future<void> writeTag(String payload) async {
     final Completer<void> completer = Completer<void>();
+
+    // --- BEZPIECZEŃSTWO WEB ---
+    if (kIsWeb) {
+      return Future.error("NFC is not supported on the Web.");
+    }
 
     bool isAvailable = await NfcManager.instance.checkAvailability() !=
         NfcAvailability.disabled;
@@ -71,7 +85,8 @@ class NfcService {
 
             await ndef.write(message: message);
 
-            if (Platform.isIOS) {
+            // Zastąpiono Platform.isIOS bezpiecznym odpowiednikiem dla Weba
+            if (defaultTargetPlatform == TargetPlatform.iOS) {
               await NfcManager.instance
                   .stopSession(alertMessageIos: 'Success!');
             } else {
@@ -85,7 +100,6 @@ class NfcService {
             if (!completer.isCompleted) completer.completeError(e);
           }
         },
-        // Removed the invalid onError parameter
       );
     } catch (e) {
       if (!completer.isCompleted) completer.completeError(e);

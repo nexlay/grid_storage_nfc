@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart'; // Dodane dla kIsWeb
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 class BarcodeScannerPage extends StatefulWidget {
@@ -22,32 +23,32 @@ class _BarcodeScannerPageState extends State<BarcodeScannerPage> {
       appBar: AppBar(
         title: const Text('Scan Barcode / QR'),
         actions: [
-          // POPRAWIONY PRZEŁĄCZNIK LATARKI
-          ValueListenableBuilder(
-            valueListenable: controller, // <--- ZMIANA: Nasłuchujemy kontrolera
-            builder: (context, state, child) {
-              // Sprawdzamy stan latarki wewnątrz obiektu state
-              switch (state.torchState) {
-                case TorchState.off:
-                  return IconButton(
-                    icon: const Icon(Icons.flash_off, color: Colors.grey),
-                    onPressed: () => controller.toggleTorch(),
-                  );
-                case TorchState.on:
-                  return IconButton(
-                    icon: const Icon(Icons.flash_on, color: Colors.yellow),
-                    onPressed: () => controller.toggleTorch(),
-                  );
-                case TorchState.unavailable:
-                  return const SizedBox.shrink(); // Brak latarki w urządzeniu
-                case TorchState.auto: // Obsługa nowego stanu auto (opcjonalnie)
-                  return IconButton(
-                    icon: const Icon(Icons.flash_auto, color: Colors.white),
-                    onPressed: () => controller.toggleTorch(),
-                  );
-              }
-            },
-          ),
+          // --- BEZPIECZEŃSTWO WEB --- Ukrywamy latarkę na przeglądarkach
+          if (!kIsWeb)
+            ValueListenableBuilder(
+              valueListenable: controller,
+              builder: (context, state, child) {
+                switch (state.torchState) {
+                  case TorchState.off:
+                    return IconButton(
+                      icon: const Icon(Icons.flash_off, color: Colors.grey),
+                      onPressed: () => controller.toggleTorch(),
+                    );
+                  case TorchState.on:
+                    return IconButton(
+                      icon: const Icon(Icons.flash_on, color: Colors.yellow),
+                      onPressed: () => controller.toggleTorch(),
+                    );
+                  case TorchState.unavailable:
+                    return const SizedBox.shrink(); // Brak latarki
+                  case TorchState.auto:
+                    return IconButton(
+                      icon: const Icon(Icons.flash_auto, color: Colors.white),
+                      onPressed: () => controller.toggleTorch(),
+                    );
+                }
+              },
+            ),
         ],
       ),
       body: MobileScanner(

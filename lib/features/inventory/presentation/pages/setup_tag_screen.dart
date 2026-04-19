@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart'; // NOWOŚĆ: Potrzebne dla kIsWeb
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
@@ -7,7 +8,7 @@ import 'package:path/path.dart' as path;
 import 'package:grid_storage_nfc/features/inventory/domain/entities/storage_box.dart';
 import 'package:grid_storage_nfc/features/inventory/presentation/bloc/inventory_bloc.dart';
 import 'package:hexcolor/hexcolor.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // Added for role checking
+import 'package:shared_preferences/shared_preferences.dart';
 
 // Printing imports
 import 'package:pdf/pdf.dart';
@@ -40,7 +41,7 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
   String _selectedColor = '#FFFFFF';
   String? _imagePath;
   bool _isLoading = false;
-  bool _isAdmin = false; // New flag for role-based UI
+  bool _isAdmin = false;
 
   final List<String> _colors = [
     '#FFFFFF',
@@ -64,7 +65,7 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
     _nameController = TextEditingController();
     _quantityController = TextEditingController();
     _thresholdController = TextEditingController();
-    _checkRole(); // Initialize role check
+    _checkRole();
 
     if (widget.boxToEdit != null) {
       _nameController.text = widget.boxToEdit!.itemName;
@@ -75,7 +76,6 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
     }
   }
 
-  // Fetch the user role from local storage
   Future<void> _checkRole() async {
     final prefs = await SharedPreferences.getInstance();
     final role = prefs.getString('user_role') ?? 'user';
@@ -149,13 +149,24 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
 
     if (image == null) return;
 
-    final appDir = await getApplicationDocumentsDirectory();
-    final fileName = path.basename(image.path);
-    final savedImage = await File(image.path).copy('${appDir.path}/$fileName');
+    // --- BEZPIECZEŃSTWO WEB ---
+    if (kIsWeb) {
+      // Na Webie ImagePicker zwraca w image.path tzw. "blob URL"
+      // Nie możemy go kopiować jak pliku na dysku.
+      setState(() {
+        _imagePath = image.path;
+      });
+    } else {
+      // Wersja dla telefonu / desktopa
+      final appDir = await getApplicationDocumentsDirectory();
+      final fileName = path.basename(image.path);
+      final savedImage =
+          await File(image.path).copy('${appDir.path}/$fileName');
 
-    setState(() {
-      _imagePath = savedImage.path;
-    });
+      setState(() {
+        _imagePath = savedImage.path;
+      });
+    }
   }
 
   void _submit() {
@@ -167,6 +178,9 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
         idToSend = widget.boxToEdit!.id;
       }
 
+      // Sprawdzamy, czy można pisać na NFC (na Webie to zawsze false)
+      final bool useNfc = widget.isNfcMode && !kIsWeb;
+
       context.read<InventoryBloc>().add(
             WriteTagRequested(
               id: idToSend,
@@ -174,7 +188,7 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
               quantity: int.parse(_quantityController.text),
               threshold: int.parse(_thresholdController.text),
               color: _selectedColor,
-              writeToNfc: widget.isNfcMode,
+              writeToNfc: useNfc,
               barcode: widget.boxToEdit?.barcode ?? widget.scannedCode,
               imagePath: _imagePath,
             ),
@@ -211,10 +225,14 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
 
   ImageProvider? _getImageProvider() {
     if (_imagePath != null && _imagePath!.isNotEmpty) {
-      if (_imagePath!.startsWith('http')) {
+      // --- BEZPIECZEŃSTWO WEB ---
+      // Web używa adresów http lub specjalnych adresów "blob:" dla ImagePickera
+      if (_imagePath!.startsWith('http') || _imagePath!.startsWith('blob:')) {
         return NetworkImage(_imagePath!);
-      } else if (File(_imagePath!).existsSync()) {
-        return FileImage(File(_imagePath!));
+      } else if (!kIsWeb) {
+        if (File(_imagePath!).existsSync()) {
+          return FileImage(File(_imagePath!));
+        }
       }
     }
     return null;
@@ -224,7 +242,9 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final bool isEditing = widget.boxToEdit != null;
-    final bool useNfc = widget.isNfcMode && !isEditing;
+
+    // --- BEZPIECZEŃSTWO WEB --- (NFC zawsze wyłączone na Webie)
+    final bool useNfc = widget.isNfcMode && !isEditing && !kIsWeb;
 
     String appBarTitle =
         isEditing ? 'Edit Item' : (useNfc ? 'Setup New Tag' : 'Setup New Item');
@@ -311,7 +331,6 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
                             ],
                           ),
                         ),
-
                       Text("Item Details",
                           style: theme.textTheme.titleMedium?.copyWith(
                               fontWeight: FontWeight.bold,
@@ -481,7 +500,6 @@ class _SetupTagScreenState extends State<SetupTagScreen> {
                           ),
                         ),
                       ),
-                      // ONLY ADMINS CAN SEE THE DELETE BUTTON
                       if (isEditing && _isAdmin) ...[
                         const SizedBox(height: 24),
                         SizedBox(

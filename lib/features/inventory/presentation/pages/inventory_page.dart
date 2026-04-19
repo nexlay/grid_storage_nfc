@@ -1,12 +1,12 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart'; // NOWOŚĆ: Dodane dla kIsWeb
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:grid_storage_nfc/features/inventory/domain/entities/storage_box.dart';
 import 'package:grid_storage_nfc/features/inventory/presentation/bloc/inventory_bloc.dart';
 import 'package:grid_storage_nfc/features/inventory/presentation/pages/barcode_scanner_page.dart';
 import 'package:grid_storage_nfc/features/inventory/presentation/pages/setup_tag_screen.dart';
 import 'package:intl/intl.dart';
-// NOWY IMPORT:
 import 'package:grid_storage_nfc/features/inventory/presentation/bloc/auth/auth_bloc.dart';
 
 class InventoryPage extends StatelessWidget {
@@ -109,7 +109,6 @@ class InventoryPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // --- SPRAWDZENIE ROLI ---
     final authState = context.watch<AuthBloc>().state;
     final isAdmin = authState is Authenticated && authState.role == 'admin';
 
@@ -142,18 +141,21 @@ class InventoryPage extends StatelessWidget {
               child: const Icon(Icons.edit_note),
             ),
           ],
-          const SizedBox(width: 16),
-          FloatingActionButton.extended(
-            heroTag: 'nfc_scan',
-            onPressed: () {
-              context.read<InventoryBloc>().add(const ScanTagRequested());
-            },
-            icon: const Icon(Icons.nfc),
-            label: const Text('Scan Tag'),
-            elevation: 4,
-            backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-            foregroundColor: Theme.of(context).colorScheme.onPrimaryContainer,
-          ),
+          // --- BEZPIECZEŃSTWO WEB --- (NFC ukryte w przeglądarce)
+          if (!kIsWeb) ...[
+            const SizedBox(width: 16),
+            FloatingActionButton.extended(
+              heroTag: 'nfc_scan',
+              onPressed: () {
+                context.read<InventoryBloc>().add(const ScanTagRequested());
+              },
+              icon: const Icon(Icons.nfc),
+              label: const Text('Scan Tag'),
+              elevation: 4,
+              backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+              foregroundColor: Theme.of(context).colorScheme.onPrimaryContainer,
+            ),
+          ],
         ],
       ),
       body: BlocBuilder<InventoryBloc, InventoryState>(
@@ -187,7 +189,6 @@ class InventoryPage extends StatelessWidget {
                     },
                     child: const Text('Go back'),
                   ),
-                  // Utworzenie przedmiotu po nieudanym skanie - TYLKO DLA ADMINA
                   if (state.message.contains('not found') && isAdmin) ...[
                     const SizedBox(height: 12),
                     FilledButton(
@@ -257,7 +258,8 @@ class InventoryPage extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Scan NFC tag or Barcode/QR',
+                  // --- Zmiana tekstu dla Weba ---
+                  kIsWeb ? 'Scan Barcode/QR' : 'Scan NFC tag or Barcode/QR',
                   style: TextStyle(color: Colors.grey.shade600),
                 ),
               ],
@@ -268,7 +270,6 @@ class InventoryPage extends StatelessWidget {
     );
   }
 
-  // --- Otrzymuje parametr isAdmin ---
   Widget _buildLoadedState(BuildContext context, StorageBox box, bool isAdmin) {
     return CustomScrollView(
       slivers: [
@@ -295,10 +296,7 @@ class InventoryPage extends StatelessWidget {
                       fontWeight: FontWeight.w500),
                 ),
               ),
-              // Zmiana ilości - DLA WSZYSTKICH
               _buildQuantityStepper(context, box),
-
-              // Przyciski edycji i usuwania - TYLKO DLA ADMINA
               if (isAdmin) ...[
                 const SizedBox(height: 80),
                 Row(
@@ -340,7 +338,6 @@ class InventoryPage extends StatelessWidget {
                   ],
                 ),
               ] else ...[
-                // Trochę marginesu na dole dla zwykłego usera
                 const SizedBox(height: 40),
               ]
             ]),
@@ -353,9 +350,13 @@ class InventoryPage extends StatelessWidget {
   Widget _buildImageCard(BuildContext context, StorageBox box) {
     Color cardColor = _hexToColor(box.hexColor);
     final imagePath = box.imagePath;
+
+    // --- BEZPIECZEŃSTWO WEB --- Logika obsługi obrazków w przeglądarce
     final bool hasPath = imagePath != null && imagePath.isNotEmpty;
-    final bool isNetwork = hasPath && imagePath.startsWith('http');
-    final bool isLocal = hasPath && !isNetwork && File(imagePath).existsSync();
+    final bool isNetwork = hasPath &&
+        (imagePath.startsWith('http') || imagePath.startsWith('blob:'));
+    final bool isLocal =
+        hasPath && !isNetwork && !kIsWeb && File(imagePath).existsSync();
     final bool showImage = isNetwork || isLocal;
 
     return Container(
@@ -385,7 +386,7 @@ class InventoryPage extends StatelessWidget {
                       errorBuilder: (context, error, stackTrace) =>
                           _buildNoPhotoPlaceholder(isError: true),
                     )
-                  else
+                  else if (!kIsWeb)
                     Image.file(
                       File(imagePath),
                       fit: BoxFit.cover,

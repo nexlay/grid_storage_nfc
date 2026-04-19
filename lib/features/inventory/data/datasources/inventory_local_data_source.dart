@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:grid_storage_nfc/features/inventory/domain/entities/storage_box.dart';
 import 'package:isar/isar.dart';
 import 'package:path_provider/path_provider.dart';
@@ -8,72 +9,108 @@ abstract class InventoryLocalDataSource {
   Future<int> saveBox(StorageBox box);
   Future<void> deleteBox(String id);
   Future<StorageBox?> getLastUsedBox();
-
-  // --- NOWA METODA: Wyszukiwanie ---
   Future<List<StorageBox>> searchBoxes(String query);
-
   Future<void> clearAll();
 }
 
 class InventoryLocalDataSourceImpl implements InventoryLocalDataSource {
-  // Isar jest teraz zarządzany tutaj, nie w repozytorium (Twój oryginalny kod)
-  static Future<Isar> init() async {
-    final dir = await getApplicationDocumentsDirectory();
-    return Isar.open(
-      [StorageBoxSchema],
-      directory: dir.path,
-    );
-  }
-
-  final Isar isar;
+  final Isar? isar;
+  final List<StorageBox> _webCache = []; // <-- Nasza mini-baza dla Weba
 
   InventoryLocalDataSourceImpl(this.isar);
 
+  static Future<InventoryLocalDataSource> init() async {
+    // --- BEZPIECZEŃSTWO WEB ---
+    if (kIsWeb) {
+      // Na Webie Isar 3.x wyrzuca błąd, więc go omijamy
+      return InventoryLocalDataSourceImpl(null);
+    }
+
+    final dir = await getApplicationDocumentsDirectory();
+    final isarInstance = await Isar.open(
+      [StorageBoxSchema],
+      directory: dir.path,
+    );
+    return InventoryLocalDataSourceImpl(isarInstance);
+  }
+
   @override
   Future<StorageBox?> getLastUsedBox() async {
-    // Sortujemy malejąco po dacie użycia i bierzemy pierwszy element
-    return await isar.storageBoxs.where().sortByLastUsedDesc().findFirst();
+    if (kIsWeb) {
+      if (_webCache.isEmpty) return null;
+      final sorted = List<StorageBox>.from(_webCache)
+        ..sort((a, b) => b.lastUsed.compareTo(a.lastUsed));
+      return sorted.first;
+    }
+    return await isar!.storageBoxs.where().sortByLastUsedDesc().findFirst();
   }
 
   @override
   Future<List<StorageBox>> getAllBoxes() async {
-    try {
-      final result = await isar.storageBoxs.where().findAll();
-      return result;
-    } catch (e) {
-      rethrow;
-    }
+    if (kIsWeb) return _webCache;
+    return await isar!.storageBoxs.where().findAll();
   }
 
   @override
   Future<StorageBox?> getBox(String id) async {
-    // Uwaga: zakładamy, że id to String parsujący się na int (dla Isar)
-    return await isar.storageBoxs.get(int.parse(id));
+    if (kIsWeb) {
+      try {
+        return _webCache.firstWhere((box) => box.id.toString() == id);
+      } catch (_) {
+        return null;
+      }
+    }
+    return await isar!.storageBoxs.get(int.parse(id));
   }
 
   @override
   Future<int> saveBox(StorageBox box) async {
-    return await isar.writeTxn(() async {
-      return await isar.storageBoxs.put(box);
+    if (kIsWeb) {
+      final index = _webCache.indexWhere((b) => b.id == box.id);
+      if (index >= 0) {
+        _webCache[index] = box;
+      } else {
+        if (box.id == Isar.autoIncrement) {
+          box.id = _webCache.isEmpty
+              ? 1
+              : (_webCache.map((b) => b.id).reduce((a, b) => a > b ? a : b) +
+                  1);
+        }
+        _webCache.add(box);
+      }
+      return box.id;
+    }
+    return await isar!.writeTxn(() async {
+      return await isar!.storageBoxs.put(box);
     });
   }
 
   @override
   Future<void> deleteBox(String id) async {
-    await isar.writeTxn(() async {
-      await isar.storageBoxs.delete(int.parse(id));
+    if (kIsWeb) {
+      _webCache.removeWhere((box) => box.id.toString() == id);
+      return;
+    }
+    await isar!.writeTxn(() async {
+      await isar!.storageBoxs.delete(int.parse(id));
     });
   }
 
-  // --- IMPLEMENTACJA WYSZUKIWANIA (NOWE) ---
   @override
   Future<List<StorageBox>> searchBoxes(String query) async {
-    if (query.isEmpty) {
-      return getAllBoxes();
+    if (query.isEmpty) return getAllBoxes();
+
+    if (kIsWeb) {
+      final lowerQuery = query.toLowerCase();
+      return _webCache.where((box) {
+        final matchName = box.itemName.toLowerCase().contains(lowerQuery);
+        final matchBarcode =
+            box.barcode?.toLowerCase().contains(lowerQuery) ?? false;
+        return matchName || matchBarcode;
+      }).toList();
     }
 
-    // Wyszukiwanie Case-Insensitive w polach itemName LUB barcode
-    return await isar.storageBoxs
+    return await isar!.storageBoxs
         .filter()
         .itemNameContains(query, caseSensitive: false)
         .or()
@@ -83,8 +120,12 @@ class InventoryLocalDataSourceImpl implements InventoryLocalDataSource {
 
   @override
   Future<void> clearAll() async {
-    await isar.writeTxn(() async {
-      await isar.storageBoxs.clear();
+    if (kIsWeb) {
+      _webCache.clear();
+      return;
+    }
+    await isar!.writeTxn(() async {
+      await isar!.storageBoxs.clear();
     });
   }
 }

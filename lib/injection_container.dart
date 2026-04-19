@@ -54,8 +54,8 @@ Future<void> init() async {
   // 1. EXTERNAL & SERVICES
   // ==========================================================
 
-  final isar = await InventoryLocalDataSourceImpl.init();
-  sl.registerLazySingleton(() => isar);
+  final localDataSource = await InventoryLocalDataSourceImpl.init();
+  sl.registerLazySingleton<InventoryLocalDataSource>(() => localDataSource);
 
   // Dodano Secure Storage dla QNAP Token
   sl.registerLazySingleton(() => const FlutterSecureStorage());
@@ -147,10 +147,6 @@ Future<void> init() async {
   // ==========================================================
   // 4. DATA LAYER (Inventory)
   // ==========================================================
-
-  sl.registerLazySingleton<InventoryLocalDataSource>(
-    () => InventoryLocalDataSourceImpl(sl()),
-  );
 
   sl.registerLazySingleton<InventoryRepository>(
     () => InventoryRepositoryImpl(

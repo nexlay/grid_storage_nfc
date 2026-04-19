@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart'; // NOWOŚĆ: Wymagane dla flagi kIsWeb
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:grid_storage_nfc/features/inventory/presentation/bloc/inventory_bloc.dart';
 import 'package:grid_storage_nfc/features/inventory/presentation/pages/setup_tag_screen.dart';
@@ -44,7 +45,6 @@ class _AllItemsPageState extends State<AllItemsPage> {
     return 'LOC-${DateTime.now().millisecondsSinceEpoch}';
   }
 
-  // --- NEW: TOTAL COUNT WIDGET ---
   Widget _buildOverviewCard(int itemsCount, int totalQuantity) {
     return SliverToBoxAdapter(
       child: Container(
@@ -176,6 +176,14 @@ class _AllItemsPageState extends State<AllItemsPage> {
   }
 
   void _showAddOptions(BuildContext context) {
+    // --- BEZPIECZEŃSTWO WEB ---
+    if (kIsWeb) {
+      // Na Webie NFC nie działa, więc całkowicie pomijamy menu wyboru
+      // i od razu pokazujemy dialog do wpisywania ręcznego.
+      _showManualAddDialog(context);
+      return;
+    }
+
     showModalBottomSheet(
       context: context,
       builder: (ctx) => SafeArea(
@@ -247,8 +255,12 @@ class _AllItemsPageState extends State<AllItemsPage> {
     if (path != null && path.isNotEmpty) {
       if (path.startsWith('http')) {
         return NetworkImage(path);
-      } else if (File(path).existsSync()) {
-        return FileImage(File(path));
+      } else if (!kIsWeb) {
+        // --- BEZPIECZEŃSTWO WEB ---
+        // Używamy klasy File tylko na platformach mobilnych/desktopowych
+        if (File(path).existsSync()) {
+          return FileImage(File(path));
+        }
       }
     }
     return null;

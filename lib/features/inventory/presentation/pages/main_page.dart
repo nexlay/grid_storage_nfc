@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart'; // Dodane dla kIsWeb
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:grid_storage_nfc/features/inventory/presentation/pages/inventory_page.dart';
 import 'package:grid_storage_nfc/features/inventory/presentation/pages/all_items_page.dart';
@@ -40,20 +41,21 @@ class _MainPageState extends State<MainPage> {
           } else if (index == 1) {
             context.read<InventoryBloc>().add(const LoadAllItems());
           }
-          // --------------------------
         },
-        destinations: const [
+        destinations: [
+          // --- BEZPIECZEŃSTWO WEB --- Zmiana ikony z NFC na QR Scanner
           NavigationDestination(
-            icon: Icon(Icons.nfc_outlined),
-            selectedIcon: Icon(Icons.nfc),
-            label: 'Scan',
+            icon: Icon(
+                kIsWeb ? Icons.qr_code_scanner_outlined : Icons.nfc_outlined),
+            selectedIcon: Icon(kIsWeb ? Icons.qr_code_scanner : Icons.nfc),
+            label: kIsWeb ? 'Scan Code' : 'Scan NFC',
           ),
-          NavigationDestination(
+          const NavigationDestination(
             icon: Icon(Icons.inventory_2_outlined),
             selectedIcon: Icon(Icons.inventory_2),
             label: 'Items',
           ),
-          NavigationDestination(
+          const NavigationDestination(
             icon: Icon(Icons.settings_outlined),
             selectedIcon: Icon(Icons.settings),
             label: 'Settings',
